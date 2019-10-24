@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/DMN/20151101/dmn.xsd" xmlns:camunda="http://camunda.org/schema/1.0/dmn" xmlns:biodi="http://bpmn.io/schema/dmn/biodi/1.0" id="purchase-participation" name="DRD" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="3.1.0">
+  <decision id="purchase-participation-dmn" name="NKB-Berechtigung" camunda:versionTag="v1.0.5">
+    <extensionElements>
+      <biodi:bounds x="282" y="183" width="180" height="80" />
+      <biodi:edge source="InputData_17p3kcl">
+        <biodi:waypoints x="231" y="125" />
+        <biodi:waypoints x="303" y="183" />
+      </biodi:edge>
+      <biodi:edge source="InputData_1yldu8k">
+        <biodi:waypoints x="382" y="123" />
+        <biodi:waypoints x="382" y="183" />
+      </biodi:edge>
+      <biodi:edge source="InputData_13yubyo">
+        <biodi:waypoints x="533" y="127" />
+        <biodi:waypoints x="462" y="183" />
+      </biodi:edge>
+    </extensionElements>
+    <informationRequirement>
+      <requiredInput href="#InputData_17p3kcl" />
+    </informationRequirement>
+    <informationRequirement>
+      <requiredInput href="#InputData_1yldu8k" />
+    </informationRequirement>
+    <informationRequirement>
+      <requiredInput href="#InputData_13yubyo" />
+    </informationRequirement>
+    <decisionTable id="decisionTable_1" hitPolicy="FIRST">
+      <input id="input_1" label="Kaufpreis" camunda:inputVariable="purchasePrice">
+        <inputExpression id="inputExpression_1" typeRef="long">
+          <text>purchasePrice</text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0bhr74b" label="Vergangene Monate seit Vertragsbeginn">
+        <inputExpression id="LiteralExpression_1lezebq" typeRef="integer">
+          <text>pastMonthsSinceBeginningOfContract</text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0n80w1n" label="Neukaufbeteiligung" camunda:inputVariable="purchaseParticipation">
+        <inputExpression id="LiteralExpression_1abqk9z" typeRef="long">
+          <text>purchaseParticipation</text>
+        </inputExpression>
+      </input>
+      <output id="OutputClause_1hmp6my" label="Ergebnis" name="result" typeRef="string" />
+      <output id="output_1" label="Freigabesumme" name="purchaseParticipationTotal" typeRef="long" />
+      <rule id="DecisionRule_0kgr0mj">
+        <description>NKB-Anspruch entspricht Kaufpreis</description>
+        <inputEntry id="UnaryTests_1tig18c">
+          <text>&lt; purchaseParticipation</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0edemyv">
+          <text>&gt;= 3</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0jfajfb">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0i4z0q9">
+          <text>"Berechtigt"</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_15de0ck">
+          <text>purchasePrice</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_039e3yv">
+        <description>NKB-Anspruch entspricht NKB-Summe</description>
+        <inputEntry id="UnaryTests_02oinni">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1gwnosf">
+          <text>&gt;= 3</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_004ft5m">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0xvcg19">
+          <text>"Berechtigt"</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1vdb1yv">
+          <text>purchaseParticipation</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1n1n6h9">
+        <description>Kein NKB-Anspruch</description>
+        <inputEntry id="UnaryTests_0s6sywj">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_02egjg2">
+          <text>&lt; 3</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_001y2cr">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0x3jok8">
+          <text>"Unerechtigt"</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0hox3wy">
+          <text>0</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <knowledgeSource id="KnowledgeSource_1svp8u1" name="Information aus Versicherungs-produkt">
+    <extensionElements>
+      <biodi:bounds x="533" y="191" width="100" height="63" />
+      <biodi:edge source="purchase-participation-dmn">
+        <biodi:waypoints x="462" y="224" />
+        <biodi:waypoints x="533" y="223" />
+      </biodi:edge>
+    </extensionElements>
+    <authorityRequirement>
+      <requiredDecision href="#purchase-participation-dmn" />
+    </authorityRequirement>
+  </knowledgeSource>
+  <inputData id="InputData_17p3kcl" name="Kaufpreis">
+    <extensionElements>
+      <biodi:bounds x="156" y="80" width="125" height="45" />
+    </extensionElements>
+  </inputData>
+  <inputData id="InputData_1yldu8k" name="Vergangener Monate seit Vertragsbeginn">
+    <extensionElements>
+      <biodi:bounds x="319" y="78" width="125" height="45" />
+    </extensionElements>
+  </inputData>
+  <inputData id="InputData_13yubyo" name="Neukaufbeteiligung (NKB)">
+    <extensionElements>
+      <biodi:bounds x="472" y="82" width="125" height="45" />
+    </extensionElements>
+  </inputData>
+</definitions>

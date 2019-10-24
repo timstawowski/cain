@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/DMN/20151101/dmn.xsd" id="Definitions_0qaqnpw" name="DRD" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="3.3.5">
+  <decision id="MDC_TOLERANCE" name="Modell-Defekt-Toleranz">
+    <decisionTable id="decisionTable_1" hitPolicy="FIRST">
+      <input id="input_1" label="MDK-Kosten (Eurocent)">
+        <inputExpression id="inputExpression_1" typeRef="long">
+          <text>#{costEstimatePosition.prop("cost").numberValue()}</text>
+        </inputExpression>
+      </input>
+      <output id="output_1" label="Toleranz in %" name="tolerance" typeRef="integer" />
+      <rule id="DecisionRule_01amau8">
+        <inputEntry id="UnaryTests_0q2xc2b">
+          <text>&lt; 15000</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0mjnxhl">
+          <text>100</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_13wkp71">
+        <inputEntry id="UnaryTests_111b1lq">
+          <text>&lt; 20000</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0on2gu1">
+          <text>35</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0nlb15m">
+        <inputEntry id="UnaryTests_0wkultp">
+          <text>&lt; 25000</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0wwqwec">
+          <text>30</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_14tyu0p">
+        <inputEntry id="UnaryTests_0i2yal8">
+          <text>&lt; 30000</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1bng6q2">
+          <text>25</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1c5ehz5">
+        <inputEntry id="UnaryTests_1n8ctut">
+          <text>&gt; 50000</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1x6gq8u">
+          <text>20</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>
