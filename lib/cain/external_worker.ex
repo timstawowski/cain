@@ -205,6 +205,8 @@ defmodule Cain.ExternalWorker do
     |> Map.put(:__struct__, create_module(struct_name))
   end
 
+  defp args_from_ast(ast), do: ast
+
   defp grab_func(topic_name, topics) do
     {_topic, description} =
       Enum.find(topics, fn {topic, _description} ->
