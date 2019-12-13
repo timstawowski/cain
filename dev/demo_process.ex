@@ -1,8 +1,8 @@
 defmodule DemoProcess do
   use Cain.BusinessProcess,
-    definition_key: "DEMO",
+    # definition_key: "DEMO",
 
-    # definition_key: "SETTLE_CLAIM_COMMUNICATION",
+    definition_key: "SETTLE_CLAIM_COMMUNICATION",
     # child_definition_keys: ["IDENTIFY_SETTLEMENT_COMMUNICATION"],
     init_variables: [
       assignee: :string,

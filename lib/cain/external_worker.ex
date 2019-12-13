@@ -167,7 +167,10 @@ defmodule Cain.ExternalWorker do
     |> Cain.Endpoint.submit()
     |> case do
       {:ok, body} ->
-        Enum.each(body, &spawn_task(&1, state))
+        import Cain.Variable, only: [parse: 1]
+
+        Enum.map(body, fn task -> Map.update!(task, "variables", &parse(&1)) end)
+        |> Enum.each(&spawn_task(&1, state))
 
       _ ->
         IO.warn("Error while fetching topics!")
@@ -183,8 +186,6 @@ defmodule Cain.ExternalWorker do
          %{"topicName" => topic_name, "id" => task_id} = payload,
          %__MODULE__{topics: topics} = state
        ) do
-    # import Cain.Variable, only: [parse: 1]
-
     try do
       {module, func, args} =
         grab_func(topic_name, topics)
