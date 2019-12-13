@@ -24,9 +24,12 @@ defmodule Cain.ExternalWorker do
   defmacro __using__(inital_params) do
     params =
       @default_params
+      |> IO.inspect(label: :default_params)
       |> Keyword.merge(inital_params)
+      |> IO.inspect(label: :merge)
       |> Keyword.put(:module, __CALLER__.module)
       |> config()
+      |> IO.inspect(label: :init_config)
 
     quote do
       def __params__() do
@@ -40,6 +43,8 @@ defmodule Cain.ExternalWorker do
   end
 
   defp config(config \\ %__MODULE__{}, params) do
+    IO.inspect(params, label: :params)
+
     topics = Keyword.get(params, :topics)
 
     cond do
