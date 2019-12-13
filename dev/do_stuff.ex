@@ -47,11 +47,11 @@ defmodule DoStuff do
 
   use Cain.ExternalWorker,
     topics: [
-      {:do_stuff,
-       [
-         func: DemoWorker.instate(%Vortex.Auth.Resource{}),
-         lock_duration: 5000
-       ]}
-      # {:instate, [func: DemoWorker.instate(), lock_duration: 5000]}
+      # {:do_stuff,
+      #  [
+      #    func: DemoWorker.instate(%Vortex.Auth.Resource{}),
+      #    lock_duration: 5000
+      #  ]}
+      {:instate, [func: DemoWorker.instate(), lock_duration: 5000]}
     ]
 end

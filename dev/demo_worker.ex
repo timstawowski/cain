@@ -37,8 +37,8 @@ defmodule DemoWorker do
     # :ok
   end
 
-  def instate(_payload, %Vortex.Auth.Resource{} = resource) do
-    IO.inspect(resource, label: :geil)
+  def instate(payload) do
+    IO.inspect(payload, label: :payload)
     :ok
   end
 
