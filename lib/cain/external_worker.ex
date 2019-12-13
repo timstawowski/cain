@@ -93,6 +93,7 @@ defmodule Cain.ExternalWorker do
   def handle_info({reference, function_result}, state) when is_reference(reference) do
     case :ets.take(state.module, reference) do
       [{_reference, task_id}] ->
+        Logger.warn("Function result is: #{inspect(function_result, pretty: true)}")
         # variables = Cain.Variable.cast(response, state.response)
         case function_result do
           :ok ->
