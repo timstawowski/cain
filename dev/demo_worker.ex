@@ -6,7 +6,8 @@ defmodule DemoWorker do
         %{
           "processDefinitionId" => process_definition_id,
           "processInstanceId" => process_instance_id
-        } = payload
+        } = payload,
+        args
       ) do
     # {:ok, super_activity} =
     #   Cain.Endpoint.ProcessInstance.get_activity_instance(process_instance_id)
@@ -30,10 +31,14 @@ defmodule DemoWorker do
     #   "annotation" => "Correct EOC."
     # })
     # |> Cain.Endpoint.submit()
+    IO.inspect(payload, label: :IN_FUNCTION)
     :ok
+    # IO.inspect(args, label: :args)
+    # :ok
   end
 
-  def instate(_payload) do
+  def instate(_payload, %Vortex.Auth.Resource{} = resource) do
+    IO.inspect(resource, label: :geil)
     :ok
   end
 

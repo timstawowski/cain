@@ -31,6 +31,10 @@ defmodule Cain.ExternalWorker do
     quote do
       def __params__() do
         unquote(Macro.escape(params))
+        # |> Map.get(:topics)
+        # |> IO.inspect()
+
+        # |> Enum.map(fn topic -> unquote(topic) end)
       end
 
       def start_link do
@@ -167,12 +171,11 @@ defmodule Cain.ExternalWorker do
     # import Cain.Variable, only: [parse: 1]
 
     try do
-      {module, func} =
+      {module, func, args} =
         grab_func(topic_name, topics)
-        |> extract_module_names
+        |> extract
 
-      apply(module, func, [payload])
-      %Task{ref: reference} = Task.async(module, func, [payload])
+      %Task{ref: reference} = Task.async(module, func, [payload] ++ args)
       :ets.insert(state.module, {reference, task_id})
     rescue
       error ->
@@ -187,10 +190,19 @@ defmodule Cain.ExternalWorker do
     end
   end
 
-  defp extract_module_names(
-         {{_operator, _line_one, [{:__aliases__, _meta, modules}, func]}, _line_two, _args}
+  defp extract({{_operator, _line_one, [{:__aliases__, _meta, modules}, func]}, _line_two, args}) do
+    {create_module(modules), func, args |> Enum.map(&args_from_ast(&1))}
+  end
+
+  defp args_from_ast(
+         {:%, _line,
+          [
+            {:__aliases__, _meta, struct_name},
+            {:%{}, _other_line, attr}
+          ]}
        ) do
-    {("Elixir." <> Enum.join(modules, ".")) |> String.to_existing_atom(), func}
+    Enum.reduce(attr, %{}, fn {key, value}, acc -> Map.put_new(acc, key, value) end)
+    |> Map.put(:__struct__, create_module(struct_name))
   end
 
   defp grab_func(topic_name, topics) do
@@ -200,6 +212,10 @@ defmodule Cain.ExternalWorker do
       end)
 
     Keyword.get(description, :func)
+  end
+
+  defp create_module(module_list) do
+    ("Elixir." <> Enum.join(module_list, ".")) |> String.to_existing_atom()
   end
 
   defp worker_id do
