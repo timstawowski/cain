@@ -52,6 +52,6 @@ defmodule DoStuff do
       #    func: DemoWorker.instate(%Vortex.Auth.Resource{}),
       #    lock_duration: 5000
       #  ]}
-      {:instate, [func: DemoWorker.instate(), lock_duration: 5000]}
+      {:do_stuff, [func: DemoWorker.migrate(), lock_duration: 5000]}
     ]
 end

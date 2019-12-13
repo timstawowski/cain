@@ -127,14 +127,19 @@ defmodule Cain.ExternalWorker do
               "retryTimeout" => retry_time_out_in_ms
             })
 
-          _error ->
-            Logger.info(
-              "External_Worker recievd invalid function result: #{
-                inspect(function_result, pretty: true)
-              }"
+          error ->
+            Logger.error(
+              "External_Worker recievd invalid function result: #{inspect(error, pretty: true)}"
             )
         end
-        |> Cain.Endpoint.submit()
+        |> case do
+          :ok ->
+            nil
+
+          valid_request ->
+            valid_request
+            |> Cain.Endpoint.submit()
+        end
 
         {:noreply, state}
 
