@@ -1,5 +1,6 @@
 defmodule Cain.ExternalWorker do
   use GenServer
+  require Logger
 
   defstruct [
     :max_tasks,
@@ -125,6 +126,13 @@ defmodule Cain.ExternalWorker do
               "retries" => retries,
               "retryTimeout" => retry_time_out_in_ms
             })
+
+          _error ->
+            Logger.info(
+              "External_Worker recievd invalid function result: #{
+                inspect(function_result, pretty: true)
+              }"
+            )
         end
         |> Cain.Endpoint.submit()
 
