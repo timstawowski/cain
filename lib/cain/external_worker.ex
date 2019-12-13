@@ -160,22 +160,19 @@ defmodule Cain.ExternalWorker do
     %{"topicName" => Atom.to_string(topic), "lockDuration" => lock_duration}
   end
 
-  def req() do
-  end
-
   defp spawn_task(
-         %{"topicName" => topic_name, "variables" => variables, "id" => task_id} = payload,
+         %{"topicName" => topic_name, "id" => task_id} = payload,
          %__MODULE__{topics: topics} = state
        ) do
-    import Cain.Variable, only: [parse: 1]
+    # import Cain.Variable, only: [parse: 1]
 
     try do
       {module, func} =
-        grap_func(topic_name, topics)
+        grab_func(topic_name, topics)
         |> extract_module_names
 
-      apply(module, func, [parse(variables), payload])
-      %Task{ref: reference} = Task.async(module, func, [parse(variables), payload])
+      apply(module, func, [payload])
+      %Task{ref: reference} = Task.async(module, func, [payload])
       :ets.insert(state.module, {reference, task_id})
     rescue
       error ->
@@ -196,7 +193,7 @@ defmodule Cain.ExternalWorker do
     {("Elixir." <> Enum.join(modules, ".")) |> String.to_existing_atom(), func}
   end
 
-  defp grap_func(topic_name, topics) do
+  defp grab_func(topic_name, topics) do
     {_topic, description} =
       Enum.find(topics, fn {topic, _description} ->
         Atom.to_string(topic) == topic_name

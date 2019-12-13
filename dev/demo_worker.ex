@@ -3,7 +3,6 @@ defmodule DemoWorker do
   #   topic: "migrate"
 
   def migrate(
-        %{},
         %{
           "processDefinitionId" => process_definition_id,
           "processInstanceId" => process_instance_id
@@ -34,7 +33,7 @@ defmodule DemoWorker do
     :ok
   end
 
-  def instate(_var, _payload) do
+  def instate(_payload) do
     :ok
   end
 
