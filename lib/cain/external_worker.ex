@@ -27,7 +27,6 @@ defmodule Cain.ExternalWorker do
       @default_params
       |> Keyword.merge(inital_params)
       |> Keyword.put(:module, __CALLER__.module)
-      |> IO.inspect()
       |> config()
 
     quote do
@@ -203,6 +202,8 @@ defmodule Cain.ExternalWorker do
           "retryTimeout" => 0
         })
         |> Cain.Endpoint.submit()
+
+        error
     end
   end
 
