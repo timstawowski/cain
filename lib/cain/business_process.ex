@@ -114,40 +114,40 @@ defmodule Cain.BusinessProcess do
         end
       end
 
-      def get_current_user_task(business_key, opts \\ [], forms_spec \\ unquote(forms_spec))
+      # def get_current_user_task(business_key, opts \\ [], forms_spec \\ unquote(forms_spec))
 
-      def get_current_user_task(business_key, opts, forms_spec) do
-        with_form_data? = Keyword.get(opts, :with_form_data?, false)
+      # def get_current_user_task(business_key, opts, forms_spec) do
+      #   with_form_data? = Keyword.get(opts, :with_form_data?, false)
 
-        {:ok, current_tasks} =
-          Task.get_list(%{
-            # "taskDefinitionKey" => task_definition_key,
-            "processInstanceBusinessKey" => business_key,
-            # "processDefinitionKey" => @key,
-            "active" => true
-          })
-          |> Endpoint.submit()
+      #   {:ok, current_tasks} =
+      #     Task.get_list(%{
+      #       # "taskDefinitionKey" => task_definition_key,
+      #       "processInstanceBusinessKey" => business_key,
+      #       # "processDefinitionKey" => @key,
+      #       "active" => true
+      #     })
+      #     |> Endpoint.submit()
 
-        if with_form_data? do
-          task_definition_key =
-            List.first(current_tasks)
-            |> Map.get("taskDefinitionKey")
-            |> String.to_existing_atom()
+      #   if with_form_data? do
+      #     task_definition_key =
+      #       List.first(current_tasks)
+      #       |> Map.get("taskDefinitionKey")
+      #       |> String.to_existing_atom()
 
-          Enum.map(current_tasks, fn %{"id" => task_id} = task ->
-            Task.get_task_form_variables(task_id, %{
-              "variableNames" =>
-                Keyword.get(forms_spec, task_definition_key)
-                |> Keyword.keys()
-                |> Enum.map(&Atom.to_string/1)
-                |> Enum.join(",")
-            })
-            |> Endpoint.submit()
-          end)
-        else
-          current_tasks
-        end
-      end
+      #     Enum.map(current_tasks, fn %{"id" => task_id} = task ->
+      #       Task.get_task_form_variables(task_id, %{
+      #         "variableNames" =>
+      #           Keyword.get(forms_spec, task_definition_key)
+      #           |> Keyword.keys()
+      #           |> Enum.map(&Atom.to_string/1)
+      #           |> Enum.join(",")
+      #       })
+      #       |> Endpoint.submit()
+      #     end)
+      #   else
+      #     current_tasks
+      #   end
+      # end
 
       def correlate_message(identifier, message, process_variables \\ %{}, opts \\ [])
 
@@ -182,6 +182,27 @@ defmodule Cain.BusinessProcess do
         |> Endpoint.submit()
       end
 
+      def trigger_user_task_bpmn_error(business_key, error_code, error_message, variables) do
+        Task.get_list(%{
+          "processInstanceBusinessKey" => business_key,
+          # "processDefinitionKey" => @key,
+          "active" => true
+        })
+        |> Endpoint.submit()
+        |> case do
+          {:ok, []} ->
+            {:error, "No open tasks for claim: #{business_key}!"}
+
+          {:ok, [%{"id" => task_id}] = response} ->
+            Task.handle_bpmn_error(task_id, %{
+              "errorCode" => error_code,
+              "errorMessage" => error_message,
+              "variables" => variables
+            })
+            |> Endpoint.submit()
+        end
+      end
+
       def complete_user_task(
             business_key,
             params \\ %{},
@@ -191,14 +212,13 @@ defmodule Cain.BusinessProcess do
 
       def complete_user_task(business_key, params, opts, forms_spec) do
         with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, false)
-        only_active? = Keyword.get(opts, :only_active?, true)
         task_definition_key = Keyword.get(opts, :task_definition_key)
         form_variables = Keyword.get(forms_spec, task_definition_key, false)
 
         Task.get_list(%{
           "processInstanceBusinessKey" => business_key,
           # "processDefinitionKey" => @key,
-          "active" => only_active?
+          "active" => true
         })
         |> Endpoint.submit()
         |> case do

@@ -59,4 +59,8 @@ defmodule Cain.Endpoint.Task do
   def update(id, body) do
     {:put, "/task/#{id}/", %{}, body}
   end
+
+  def handle_bpmn_error(id, body) do
+    {:post, "/task/#{id}/bpmnError", %{}, body}
+  end
 end
