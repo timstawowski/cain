@@ -9,7 +9,6 @@ defmodule Cain.Endpoint do
   @success_codes [200, 204]
 
   @middleware [
-    {Tesla.Middleware.BaseUrl, "http://localhost:4004/engine-rest"},
     Tesla.Middleware.JSON
     # Tesla.Middleware.Logger
   ]
@@ -28,7 +27,7 @@ defmodule Cain.Endpoint do
   end
 
   def init(_args) do
-    {:ok, Tesla.client(@middleware)}
+    {:ok, Tesla.client(middleware())}
   end
 
   def handle_call({:get, path, query, _body}, _from, state) do
@@ -59,5 +58,18 @@ defmodule Cain.Endpoint do
 
   defp handle_response({:error, reason}) do
     handle_response({:error, inspect(reason)})
+  end
+
+  defp middleware do
+    case Application.get_env(:cain, __MODULE__, nil) do
+      [url: url] ->
+        [
+          {Tesla.Middleware.BaseUrl, url}
+          | @middleware
+        ]
+
+      _ ->
+        raise "Incomplete configuration"
+    end
   end
 end
