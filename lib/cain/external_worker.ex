@@ -22,20 +22,20 @@ defmodule Cain.ExternalWorker do
   # api code ...
   #
 
+  @callback register_topics() :: [{atom(), {atom(), atom(), list()}, list()}]
+
   defmacro __using__(inital_params) do
     params =
       @default_params
-      |> Keyword.merge(inital_params)
+      |> Enum.map(fn {k, v} -> {k, Keyword.get(inital_params, k, v)} end)
       |> Keyword.put(:module, __CALLER__.module)
       |> config()
 
     quote do
+      @behaviour Cain.ExternalWorker
+
       def __params__() do
         unquote(Macro.escape(params))
-        # |> Map.get(:topics)
-        # |> IO.inspect()
-
-        # |> Enum.map(fn topic -> unquote(topic) end)
       end
 
       def start_link do
@@ -45,22 +45,13 @@ defmodule Cain.ExternalWorker do
   end
 
   defp config(config \\ %__MODULE__{}, params) do
-    topics = Keyword.get(params, :topics)
-
-    cond do
-      is_nil(topics) or topics == [] ->
-        IO.warn("Topics has to be defined!")
-
-      true ->
-        %__MODULE__{
-          config
-          | max_tasks: Keyword.get(params, :max_tasks),
-            use_priority: Keyword.get(params, :use_priority),
-            topics: topics,
-            polling_interval: Keyword.get(params, :polling_interval),
-            module: Keyword.get(params, :module)
-        }
-    end
+    %__MODULE__{
+      config
+      | max_tasks: Keyword.get(params, :max_tasks),
+        use_priority: Keyword.get(params, :use_priority),
+        polling_interval: Keyword.get(params, :polling_interval),
+        module: Keyword.get(params, :module)
+    }
   end
 
   # #####
@@ -76,7 +67,8 @@ defmodule Cain.ExternalWorker do
   def handle_continue(:init, state) do
     new_state = %__MODULE__{
       state
-      | worker_id: worker_id()
+      | worker_id: worker_id(),
+        topics: apply(state.module, :register_topics, [])
     }
 
     schedule_polling(new_state)
@@ -176,8 +168,8 @@ defmodule Cain.ExternalWorker do
     end
   end
 
-  def create_topics({topic, description}) do
-    lock_duration = Keyword.get(description, :lock_duration, :timer.minutes(2))
+  def create_topics({topic, _referenced_func, opts}) do
+    lock_duration = Keyword.get(opts, :lock_duration, :timer.minutes(2))
     %{"topicName" => Atom.to_string(topic), "lockDuration" => lock_duration}
   end
 
@@ -186,9 +178,10 @@ defmodule Cain.ExternalWorker do
          %__MODULE__{topics: topics} = state
        ) do
     try do
-      {module, func, args} =
-        grab_func(topic_name, topics)
-        |> extract
+      {_topic, {module, func, args}, _opts} =
+        Enum.find(topics, fn {topic, func, _opts} ->
+          Atom.to_string(topic) == topic_name
+        end)
 
       %Task{ref: reference} = Task.async(module, func, [payload] ++ args)
       :ets.insert(state.module, {reference, task_id})
@@ -205,32 +198,6 @@ defmodule Cain.ExternalWorker do
 
         error
     end
-  end
-
-  defp extract({{_operator, _line_one, [{:__aliases__, _meta, modules}, func]}, _line_two, args}) do
-    {create_module(modules), func, args |> Enum.map(&args_from_ast(&1))}
-  end
-
-  defp args_from_ast(
-         {:%, _line,
-          [
-            {:__aliases__, _meta, struct_name},
-            {:%{}, _other_line, attr}
-          ]}
-       ) do
-    Enum.reduce(attr, %{}, fn {key, value}, acc -> Map.put_new(acc, key, value) end)
-    |> Map.put(:__struct__, create_module(struct_name))
-  end
-
-  defp args_from_ast(ast), do: ast
-
-  defp grab_func(topic_name, topics) do
-    {_topic, description} =
-      Enum.find(topics, fn {topic, _description} ->
-        Atom.to_string(topic) == topic_name
-      end)
-
-    Keyword.get(description, :func)
   end
 
   defp create_module(module_list) do

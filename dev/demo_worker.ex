@@ -6,7 +6,8 @@ defmodule DemoWorker do
         %{
           "processDefinitionId" => process_definition_id,
           "processInstanceId" => process_instance_id
-        } = payload
+        } = payload,
+        args
       ) do
     # {:ok, super_activity} =
     #   Cain.Endpoint.ProcessInstance.get_activity_instance(process_instance_id)
@@ -30,9 +31,9 @@ defmodule DemoWorker do
     #   "annotation" => "Correct EOC."
     # })
     # |> Cain.Endpoint.submit()
-    :PEEE
-    # IO.inspect(args, label: :args)
-    # :ok
+    IO.inspect(args, label: :args)
+    # :PEEE
+    :ok
   end
 
   def instate(payload) do

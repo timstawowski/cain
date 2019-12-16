@@ -46,12 +46,11 @@ defmodule DoStuff do
   require Vortex.System
 
   use Cain.ExternalWorker,
-    topics: [
-      # {:do_stuff,
-      #  [
-      #    func: DemoWorker.instate(%Vortex.Auth.Resource{}),
-      #    lock_duration: 5000
-      #  ]}
-      {:do_stuff, [func: DemoWorker.migrate(), lock_duration: 5000]}
-    ]
+    max_tasks: 2,
+    use_priority: true,
+    polling_interval: 2000
+
+  def register_topics() do
+    [{:migrate, {DemoWorker, :migrate, [%Vortex.Auth.Resource{}]}, [lock_duration: 5000]}]
+  end
 end
