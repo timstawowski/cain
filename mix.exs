@@ -26,6 +26,10 @@ defmodule Cain.MixProject do
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
-    [{:tesla, "~> 1.2.1"}, {:jason, ">= 1.0.0"}, {:saxy, "~> 0.10.0"}]
+    [
+      {:tesla, "~> 1.2.1"},
+      {:jason, ">= 1.0.0"}
+      #  {:saxy, "~> 0.10.0"}
+    ]
   end
 end

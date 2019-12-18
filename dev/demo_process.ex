@@ -60,6 +60,24 @@ defmodule DemoProcess do
       ]
     ]
 
+  def start(claim_nr) do
+    start_instance(claim_nr, %{
+      "repair_worker" => %{
+        "value" => "repair_worker",
+        "type" => "String"
+      },
+      "repair_stores" => %{
+        "value" => "5444, 56666898, 422442",
+        "type" => "String"
+      },
+      "store_worker_candidates" => %{
+        "value" => "Peter Parker, Bruce Wayne",
+        "type" => "String"
+      }
+    })
+    |> Cain.ProcessInstance.create()
+  end
+
   @code_message_name []
   def start(claim_nr, repair_worker) do
     start_instance(claim_nr, %{

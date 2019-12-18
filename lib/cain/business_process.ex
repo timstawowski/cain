@@ -50,6 +50,14 @@ defmodule Cain.BusinessProcess do
 
         ProcessDefinition.start_instance(strategy, request)
         |> Endpoint.submit()
+
+        # |> case do
+        #   {:ok, response} ->
+        #     response
+        #     |> BusinessProcess.format_response()
+
+        #     # |>
+        # end
       end
 
       def get_current_process_instance(super_process_instance_id) do
@@ -185,7 +193,6 @@ defmodule Cain.BusinessProcess do
       def trigger_user_task_bpmn_error(business_key, error_code, error_message, variables) do
         Task.get_list(%{
           "processInstanceBusinessKey" => business_key,
-          # "processDefinitionKey" => @key,
           "active" => true
         })
         |> Endpoint.submit()
@@ -217,7 +224,7 @@ defmodule Cain.BusinessProcess do
 
         Task.get_list(%{
           "processInstanceBusinessKey" => business_key,
-          # "processDefinitionKey" => @key,
+          "processDefinitionKey" => @key,
           "active" => true
         })
         |> Endpoint.submit()
