@@ -1,13 +1,13 @@
 defmodule Cain.Endpoint.DecisionDefinition do
-  def evaluate(%{id: id}, body) do
+  def evaluate({:id, id}, body) do
     evaluate("/decision-definition/#{id}/evaluate", body)
   end
 
-  def evaluate(%{key: key}, body) do
+  def evaluate({:key, key}, body) do
     evaluate("/decision-definition/key/#{key}/evaluate", body)
   end
 
-  def evaluate(%{key: key, tenant_id: tenant_id}, body) do
+  def evaluate({:key, key, :tenant_id, tenant_id}, body) do
     evaluate("/decision-definition/key/#{key}/tenant-id/#{tenant_id}/evaluate", body)
   end
 

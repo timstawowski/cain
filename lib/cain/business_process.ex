@@ -20,7 +20,7 @@ defmodule Cain.BusinessProcess do
 
     cond do
       is_nil(key) ->
-        raise "definition_key must be provided!"
+        raise IO.warn("definition_key must be provided!")
 
       true ->
         Module.put_attribute(__CALLER__.module, :key, key)
@@ -38,7 +38,7 @@ defmodule Cain.BusinessProcess do
           Keyword.get(opts, :start_instructions)
           |> BusinessProcess.create_instructions()
 
-        strategy = Keyword.get(opts, :strategy, %{key: @key})
+        strategy = Keyword.get(opts, :strategy, {:key, @key})
         variables = Cain.Variable.cast(params, unquote(init_variables))
 
         request = %{
@@ -271,7 +271,8 @@ defmodule Cain.BusinessProcess do
   end
 
   def create_instructions(start_instructions) do
-    Enum.map(start_instructions, &create_instructions(&1))
+    start_instructions
+    |> Enum.map(&create_instructions(&1))
   end
 
   defp activity_type(:start_before_activity), do: "startBeforeActivity"

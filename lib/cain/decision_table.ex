@@ -15,7 +15,7 @@ defmodule Cain.DecisionTable do
     end
 
     quote do
-      def evaluate(strategy \\ %{key: @key}, body)
+      def evaluate(strategy \\ {:key, @key}, body)
 
       def evaluate(strategy, body) do
         DecisionDefinition.evaluate(strategy, %{
