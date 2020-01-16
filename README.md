@@ -1,6 +1,5 @@
 # Cain
-
-**TODO: Add description**
+Complete Camunda-REST-Interpreter which handles e.g. the business process models REST-calls to the process engine via a process instance representation in elixir as a own GenServer.
 
 ## Installation
 
