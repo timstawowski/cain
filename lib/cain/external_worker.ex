@@ -1,6 +1,9 @@
 defmodule Cain.ExternalWorker do
   use GenServer
   require Logger
+  import Cain.Endpoint, only: [submit: 1]
+  alias Cain.Variable
+  alias Cain.Endpoint.ExternalTask
 
   defstruct [
     :max_tasks,
@@ -81,38 +84,38 @@ defmodule Cain.ExternalWorker do
     {:noreply, state}
   end
 
-  # out lagern und
+  # decompose
   def handle_info({reference, function_result}, state) when is_reference(reference) do
     case :ets.take(state.module, reference) do
       [{_reference, task_id}] ->
-        Logger.warn("Function result is: #{inspect(function_result, pretty: true)}")
-        # variables = Cain.Variable.cast(response, state.response)
+        Logger.info("External function result is: #{inspect(function_result, pretty: true)}")
+
         case function_result do
           :ok ->
-            Cain.Endpoint.ExternalTask.complete(
+            ExternalTask.complete(
               task_id,
               %{"workerId" => state.worker_id}
             )
 
           {:ok, variables} ->
-            Cain.Endpoint.ExternalTask.complete(
+            ExternalTask.complete(
               task_id,
-              %{"workerId" => state.worker_id, "variables" => variables}
+              %{"workerId" => state.worker_id, "variables" => Variable.cast(variables)}
             )
 
           {:bpmn_error, code, message, variables} ->
-            Cain.Endpoint.ExternalTask.handle_bpmn_error(task_id, %{
+            ExternalTask.handle_bpmn_error(task_id, %{
               "workerId" => state.worker_id,
               "errorCode" => code,
               "errorMessage" => message,
-              "variables" => variables
+              "variables" => Cain.Variable.cast(variables)
             })
 
           {:incident, message, details, opts} ->
             retries = Keyword.get(opts, :retries, 0)
             retry_time_out_in_ms = Keyword.get(opts, :retry_time_out_in_ms, 3000)
 
-            Cain.Endpoint.ExternalTask.handle_failure(task_id, %{
+            ExternalTask.handle_failure(task_id, %{
               "workerId" => state.worker_id,
               "errorMessage" => message,
               "errorDetails" => details,
@@ -130,7 +133,7 @@ defmodule Cain.ExternalWorker do
             nil
 
           valid_request ->
-            Cain.Endpoint.submit(valid_request)
+            submit(valid_request)
         end
 
         {:noreply, state}
@@ -148,19 +151,18 @@ defmodule Cain.ExternalWorker do
     Process.send_after(self(), :poll, state.polling_interval)
   end
 
+  # decompose
   defp fetch_and_lock(state) do
     %{
       "workerId" => state.worker_id,
       "maxTasks" => state.max_tasks
     }
     |> Map.put("topics", Enum.map(state.topics, &create_topics(&1)))
-    |> Cain.Endpoint.ExternalTask.fetch_and_lock()
-    |> Cain.Endpoint.submit()
+    |> ExternalTask.fetch_and_lock()
+    |> submit()
     |> case do
       {:ok, body} ->
-        import Cain.Variable, only: [parse: 1]
-
-        Enum.map(body, fn task -> Map.update!(task, "variables", &parse(&1)) end)
+        Enum.map(body, fn task -> Map.update!(task, "variables", &Variable.parse/1) end)
         |> Enum.each(&spawn_task(&1, state))
 
       _ ->
@@ -168,18 +170,18 @@ defmodule Cain.ExternalWorker do
     end
   end
 
-  def create_topics({topic, _referenced_func, opts}) do
+  defp create_topics({topic, _referenced_func, opts}) do
     lock_duration = Keyword.get(opts, :lock_duration, :timer.minutes(2))
     %{"topicName" => Atom.to_string(topic), "lockDuration" => lock_duration}
   end
 
+  # decompose
   defp spawn_task(
          %{"topicName" => topic_name, "id" => task_id} = payload,
          %__MODULE__{topics: topics} = state
        ) do
-    # try do
     {_topic, {module, func, args}, _opts} =
-      Enum.find(topics, fn {topic, func, _opts} ->
+      Enum.find(topics, fn {topic, _func, _opts} ->
         Atom.to_string(topic) == topic_name
       end)
 
@@ -187,17 +189,16 @@ defmodule Cain.ExternalWorker do
     :ets.insert(state.module, {reference, task_id})
   rescue
     error ->
-      Cain.Endpoint.ExternalTask.handle_failure(task_id, %{
+      ExternalTask.handle_failure(task_id, %{
         "workerId" => state.worker_id,
         "errorMessage" => "Implementation Error (#{error.__struct__})",
         "errorDetails" => Exception.format(:error, error, __STACKTRACE__),
         "retries" => 0,
         "retryTimeout" => 0
       })
-      |> Cain.Endpoint.submit()
+      |> submit()
 
       error
-      # end
   end
 
   defp worker_id do

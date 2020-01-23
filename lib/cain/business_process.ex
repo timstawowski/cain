@@ -12,8 +12,6 @@ defmodule Cain.BusinessProcess do
 
   defmacro __using__(params) do
     key = Keyword.get(params, :definition_key)
-    init_variables = Keyword.get(params, :init_variables)
-    forms_spec = Keyword.get(params, :forms, [])
 
     cond do
       is_nil(key) ->
@@ -36,7 +34,7 @@ defmodule Cain.BusinessProcess do
           |> BusinessProcess.create_instructions()
 
         strategy = Keyword.get(opts, :strategy, {:key, @key})
-        variables = Cain.Variable.cast(params, unquote(init_variables))
+        variables = Cain.Variable.cast(params)
 
         request = %{
           "businessKey" => business_key,
@@ -47,14 +45,6 @@ defmodule Cain.BusinessProcess do
 
         ProcessDefinition.start_instance(strategy, request)
         |> Endpoint.submit()
-
-        # |> case do
-        #   {:ok, response} ->
-        #     response
-        #     |> BusinessProcess.format_response()
-
-        #     # |>
-        # end
       end
 
       def get_current_process_instance(super_process_instance_id) do
@@ -211,14 +201,12 @@ defmodule Cain.BusinessProcess do
       def complete_user_task(
             business_key,
             params \\ %{},
-            opts \\ [],
-            forms_spec \\ unquote(forms_spec)
+            opts \\ []
           )
 
-      def complete_user_task(business_key, params, opts, forms_spec) do
-        with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, false)
-        task_definition_key = Keyword.get(opts, :task_definition_key)
-        form_variables = Keyword.get(forms_spec, task_definition_key, false)
+      def complete_user_task(business_key, params, opts) do
+        with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
+        variables = Cain.Variable.cast(params)
 
         Task.get_list(%{
           "processInstanceBusinessKey" => business_key,
@@ -231,13 +219,6 @@ defmodule Cain.BusinessProcess do
             {:error, "No open tasks for claim: #{business_key}!"}
 
           {:ok, [%{"id" => task_id}] = response} ->
-            variables =
-              if form_variables do
-                Cain.Variable.cast(params, form_variables)
-              else
-                params
-              end
-
             task_id
             |> Task.complete(%{
               "variables" => variables,
@@ -247,6 +228,7 @@ defmodule Cain.BusinessProcess do
             |> case do
               {:ok, variables} ->
                 variables
+                |> Cain.Variable.parse()
 
               error ->
                 error

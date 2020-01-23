@@ -4,7 +4,6 @@ defmodule Cain.DecisionTable do
 
   defmacro __using__(params) do
     key = Keyword.get(params, :definition_key)
-    input_variables = Keyword.get(params, :input)
 
     cond do
       is_nil(key) ->
@@ -19,7 +18,7 @@ defmodule Cain.DecisionTable do
 
       def evaluate(strategy, body) do
         DecisionDefinition.evaluate(strategy, %{
-          "variables" => Cain.Variable.cast(body, unquote(input_variables))
+          "variables" => Cain.Variable.cast(body)
         })
         |> Endpoint.submit()
         |> case do

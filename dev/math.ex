@@ -1,7 +1,6 @@
 defmodule Math do
-  def add(%{"variables" => %{"foo" => first_argument, "bar" => second_argument}}) do
-    sum = first_argument + second_argument
-
-    {:ok, %{"sum" => %{"type" => "Integer", "value" => sum}}}
+  def add(_payload) do
+    {:ok, date_time, _} = DateTime.from_iso8601("2019-04-29T14:01:47Z")
+    {:ok, %{test_date_time: date_time}}
   end
 end

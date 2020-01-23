@@ -26,3 +26,5 @@ erl_crash.dump
 cain-*.tar
 
 .elixir_ls
+
+.iex.exs

@@ -14,6 +14,7 @@ alias Cain.Endpoint
 alias Cain.Endpoint.{ExternalTask, ProcessDefinition}
 
 # DoStuff.start_link
+v = %{sum: {123, :long}, test: "bar"}
 
 a_i = %{
   "processInstanceId" => "c02717c4-1763-11ea-bb61-0242ac110004",
@@ -32,6 +33,8 @@ v_i = %{
   other_device_model_imei: nil,
   other_device_model_serial_number: nil
 }
+
+is_long = fn term -> if term > 2147483647 || term < -2147483648 do true else false end end
 
 # v_i = %{
 #   estimate_of_cost: [%{"cost" => 42424, "code" => "3010"}]

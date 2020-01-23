@@ -1,111 +1,120 @@
 defmodule Cain.Variable do
-  # @types [:string, :boolean, :integer, :long, :double, :json, :object]
-  @types [:string, :boolean, :integer, :long, :double, :json]
+  # @complex_types [
+  #   :file,
+  #   :object,
+  #   :json,
+  #   :xml
+  # ]
 
-  # TODO:  types into protocol
-  def valid_spec?(spec) do
-    Keyword.keyword?(spec) and Enum.all?(Keyword.values(spec), &Enum.member?(@types, &1))
+  # @byte_precision -128..127
+  @short_precision -32_768..32_767
+  @integer_precision -2_147_483_648..2_147_483_647
+  @long_precision -9_223_372_036_854_775_808..9_223_372_036_854_775_807
+
+  def cast(%{__struct__: _struct} = variables) do
+    cast(Map.from_struct(variables))
   end
 
-  def parse(%{"value" => value, "type" => "Json"}) do
-    Jason.decode!(value)
+  def cast(variables) when is_map(variables) do
+    variables
+    |> Map.to_list()
+    |> cast()
+    |> Map.new()
   end
 
-  def parse(%{"value" => value, "type" => _type}) do
-    value
+  def cast(list, acc \\ [])
+
+  def cast([], acc), do: acc
+
+  def cast([{name, %DateTime{} = date_time} | rest], acc) do
+    cast(rest, [
+      {Atom.to_string(name), %{"type" => "Date", "value" => cast_date(date_time)}}
+      | acc
+    ])
+  end
+
+  def cast([{name, %Date{} = date} | rest], acc) do
+    cast(rest, [
+      {Atom.to_string(name), %{"type" => "Date", "value" => cast_date(date)}} | acc
+    ])
+  end
+
+  def cast([{name, value} | rest], acc) when is_map(value) or is_list(value) do
+    cast(rest, [
+      {Atom.to_string(name), %{"type" => "Json", "value" => Jason.encode!(value)}} | acc
+    ])
+  end
+
+  def cast([{name, value} | rest], acc) do
+    cast(rest, [{Atom.to_string(name), %{"type" => type(value), "value" => value}} | acc])
   end
 
   def parse(variables) when is_map(variables) do
     variables
-    |> Enum.map(fn {key, variable} -> {key, parse(variable)} end)
+    |> Enum.map(fn {key, variable} -> {key, __parse__(variable)} end)
     |> Map.new()
   end
 
-  def cast(%{}, nil) do
-    %{}
+  def parse(_term) do
+    :error
   end
 
-  def cast(term, spec) when is_map(term) and is_list(spec) do
-    term
-    |> Map.to_list()
-    |> cast(spec)
-    |> Map.new()
+  defp __parse__(%{"value" => value, "type" => "Json"}) do
+    Jason.decode!(value)
   end
 
-  def cast(_term, []) do
-    []
+  defp __parse__(%{"value" => value, "type" => "Date"}) do
+    {:ok, date_time, _} = DateTime.from_iso8601(value)
+    date_time
   end
 
-  def cast([{key, value} | variables], spec) when is_binary(key) do
-    atom_key = String.to_existing_atom(key)
-
-    cast([{atom_key, value} | variables], spec)
-  rescue
-    ArgumentError ->
-      cast(variables, spec)
+  defp __parse__(%{"value" => value, "type" => _type}) do
+    value
   end
 
-  def cast([{key, value} | variables], spec) when is_atom(key) and is_list(spec) do
-    case Keyword.fetch(spec, key) do
-      {:ok, type} ->
-        [{Atom.to_string(key), cast(value, type)} | cast(variables, spec)]
+  defp type(term) when is_nil(term), do: "Null"
+  defp type(term) when is_binary(term), do: "String"
+  defp type(term) when is_boolean(term), do: "Boolean"
+  defp type(term) when is_float(term), do: "Double"
 
-      _ ->
-        cast(variables, spec)
-    end
+  # defp type(term) when is_number(term) and term in @byte_precision, do: "Byte"
+  defp type(term) when is_number(term) and term in @short_precision, do: "Short"
+  defp type(term) when is_number(term) and term in @integer_precision, do: "Integer"
+  defp type(term) when is_number(term) and term in @long_precision, do: "Long"
+
+  def format_milliseconds(%DateTime{microsecond: {ms, 0}} = date_time) do
+    opts =
+      Map.from_struct(date_time)
+      |> Map.put(:microsecond, {ms, 3})
+      |> Map.to_list()
+
+    struct(DateTime, opts)
   end
 
-  def cast(value, :string) when is_binary(value) or is_nil(value) do
-    %{
-      "value" => value,
-      "type" => "String"
-    }
+  def format_milliseconds(date_time) do
+    DateTime.truncate(date_time, :millisecond)
   end
 
-  def cast(value, :boolean) when is_boolean(value) or is_nil(value) do
-    %{
-      "value" => value,
-      "type" => "Boolean"
-    }
+  defp cast_date(%DateTime{utc_offset: utc_offset} = date_time) do
+    date_time
+    |> format_milliseconds()
+    |> DateTime.to_iso8601()
+    |> format_utc_offset(utc_offset)
   end
 
-  def cast(value, :integer) when is_integer(value) or is_nil(value) do
-    %{
-      "value" => value,
-      "type" => "Integer"
-    }
+  defp cast_date(%Date{} = date) do
+    IO.iodata_to_binary([Date.to_iso8601(date), "T00:00:00.000+0000"])
   end
 
-  def cast(value, :long) when is_integer(value) or is_nil(value) do
-    %{
-      "value" => value,
-      "type" => "Long"
-    }
+  defp format_utc_offset(iso_string, 0) do
+    String.replace(iso_string, "Z", "+0000")
   end
 
-  # handle decimal?
-  # def cast(%Decimal{} = decimal, :long) do
+  defp format_utc_offset(iso_string, utc_offset) do
+    h =
+      div(utc_offset, 60)
+      |> div(60)
 
-  # end
-
-  def cast(value, :double) when is_integer(value) or is_nil(value) do
-    %{
-      "value" => value,
-      "type" => "Double"
-    }
+    String.replace(iso_string, "Z", "+0#{h}00")
   end
-
-  def cast(value, :json) when is_map(value) or is_list(value) do
-    %{
-      "value" => Jason.encode!(value),
-      "type" => "Json"
-    }
-  end
-
-  def cast([], _spec) do
-    []
-  end
-
-  # def cast(value, :object) do
-  # end
 end
