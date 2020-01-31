@@ -27,7 +27,7 @@ defmodule Cain.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:tesla, "~> 1.2.1"},
+      {:tesla, "~> 1.3.1"},
       {:jason, ">= 1.0.0"}
     ]
   end

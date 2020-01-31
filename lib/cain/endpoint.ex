@@ -10,7 +10,6 @@ defmodule Cain.Endpoint do
 
   @middleware [
     Tesla.Middleware.JSON
-    # Tesla.Middleware.Logger
   ]
 
   def submit(request) do
@@ -61,15 +60,17 @@ defmodule Cain.Endpoint do
   end
 
   defp middleware do
-    case Application.get_env(:cain, __MODULE__, nil) do
-      [url: url] ->
-        [
-          {Tesla.Middleware.BaseUrl, url}
-          | @middleware
-        ]
+    conf = Application.get_env(:cain, __MODULE__, [])
+    url = Keyword.get(conf, :url, nil)
+    middleware = Keyword.get(conf, :middleware, [])
 
-      _ ->
-        raise "Incomplete configuration"
-    end
+    if is_nil(url), do: raise("Incomplete configuration")
+
+    [
+      {Tesla.Middleware.BaseUrl, url},
+      middleware
+      | @middleware
+    ]
+    |> List.flatten()
   end
 end
