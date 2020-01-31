@@ -185,8 +185,14 @@ defmodule Cain.ExternalWorker do
         Atom.to_string(topic) == topic_name
       end)
 
-    %Task{ref: reference} = Task.async(module, func, [payload] ++ args)
-    :ets.insert(state.module, {reference, task_id})
+    case :ets.match(state.module, {:"$1", task_id}) do
+      [] ->
+        %Task{ref: reference} = Task.async(module, func, [payload] ++ args)
+        :ets.insert(state.module, {reference, task_id})
+
+      _already_started ->
+        :already_started
+    end
   rescue
     error ->
       ExternalTask.handle_failure(task_id, %{

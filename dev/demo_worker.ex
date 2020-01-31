@@ -5,6 +5,6 @@ defmodule DemoWorker do
     polling_interval: 2000
 
   def register_topics() do
-    [{:add, {Math, :add, []}, [lock_duration: 5000]}]
+    [{:add, {Math, :add, []}, [lock_duration: 1]}]
   end
 end
