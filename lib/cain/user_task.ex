@@ -6,6 +6,7 @@ defmodule Cain.UserTask do
       {:form_variables, &Cain.Endpoint.Task.get_task_form_variables/1}
     ]
 
+  alias Cain.UserTask
   alias Cain.{Endpoint.Task, Variable}
 
   @type user_task() :: %Cain.UserTask{}
@@ -47,6 +48,63 @@ defmodule Cain.UserTask do
   ]
 
   @doc """
+  Changes the assignee of a task to a specific user.
+  """
+  # TODO: Add validation on candidates
+  @spec claim(UserTask.t(), String.t()) ::
+          :ok | {:already_claimed_by, String.t()} | {:error, String.t()}
+  def claim(%__MODULE__{assignee: assignee}, _user_id) when not is_nil(assignee) do
+    {:already_claimed_by, assignee}
+  end
+
+  def claim(%__MODULE__{id: id, assignee: nil}, user_id) do
+    Task.claim(id, user_id)
+  end
+
+  @doc """
+  Resets a task’s assignee if a assginee is set, otherwise returns `:not_claimed`
+  """
+  @spec unclaim(UserTask.t()) :: :ok | :not_claimed | {:error, String.t()}
+  def unclaim(%__MODULE__{assignee: nil}) do
+    :not_claimed
+  end
+
+  def unclaim(%__MODULE__{id: id}) do
+    Task.unclaim(id)
+  end
+
+  @doc """
+  Changes the assignee of a task to a specific user.
+
+  The difference with the Claim Task method is that this method does not check if the task already has a user assigned to it.
+  """
+  @spec set_assignee(UserTask.t(), String.t()) :: :ok | {:error, String.t()}
+  def set_assignee(%__MODULE__{id: id}, user_id) do
+    Task.set_assignee(id, user_id)
+  end
+
+  @spec delegate(UserTask.t(), String.t()) :: :ok | {:error, String.t()}
+  def delegate(%__MODULE__{id: id}, user_id) do
+    Task.delegate(id, user_id)
+  end
+
+  @spec resolve(UserTask.t(), Cain.Variable.t()) :: :ok | {:error, String.t()}
+  def resolve(%__MODULE__{id: id}, variables) do
+    Task.resolve(id, variables)
+  end
+
+  @spec submit_form(UserTask.t(), Cain.Variable.t(), list()) :: :ok | {:error, String.t()}
+  def submit_form(%__MODULE__{id: task_id}, params, opts) do
+    with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
+
+    Task.submit_form(task_id, %{
+      "variables" => Variable.cast(params),
+      "withVariablesInReturn" => with_variables_in_return?
+    })
+    |> Cain.Response.Helper.variables_in_return(with_variables_in_return?)
+  end
+
+  @doc """
   Completes a task and updates process variables.
 
   To indicate whether the response should contain the process variables or not `with_variables_in_return?` can be set to `true` default is false.
@@ -55,19 +113,12 @@ defmodule Cain.UserTask do
           :ok | Variable.t() | {:error, String.t()}
   def complete(%__MODULE__{id: task_id}, params \\ %{}, opts \\ []) do
     with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
-    variables = Variable.cast(params)
 
     Task.complete(task_id, %{
-      "variables" => variables,
+      "variables" => Variable.cast(params),
       "withVariablesInReturn" => with_variables_in_return?
     })
-    |> case do
-      response when is_map(response) ->
-        Variable.parse(response)
-
-      response ->
-        response
-    end
+    |> Cain.Response.Helper.variables_in_return(with_variables_in_return?)
   end
 
   @doc """

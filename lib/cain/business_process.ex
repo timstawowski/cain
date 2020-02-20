@@ -47,6 +47,10 @@ defmodule Cain.BusinessProcess do
         ProcessDefinition.start_instance(strategy, request)
       end
 
+      def get_running_instances do
+        ProcessInstance.get_list(%{"processDefinitionKey" => @definition_key})
+      end
+
       def get_process_instance_by_business_key(business_key) do
         ProcessInstance.get_list(%{
           "businessKey" => business_key,

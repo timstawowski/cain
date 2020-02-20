@@ -1,10 +1,12 @@
 defmodule Cain.Activity do
+  import Cain.Response.Helper
+
   defmacro __using__(opts) do
     extentional_fields = Keyword.get(opts, :extentional_fields)
 
     quote do
       def cast(params) do
-        struct(__MODULE__, Cain.Response.pre_cast(params))
+        struct(__MODULE__, pre_cast(params))
       end
 
       def cast(params, extend: :full) do
@@ -35,10 +37,6 @@ defmodule Cain.Activity do
         activity,
         field,
         func.(activity.id)
-        |> case do
-          {:ok, response} -> response
-          _error -> :error
-        end
       )
     end)
   end
