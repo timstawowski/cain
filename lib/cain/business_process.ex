@@ -45,6 +45,7 @@ defmodule Cain.BusinessProcess do
         }
 
         ProcessDefinition.start_instance(strategy, request)
+        |> Cain.Response.Helper.variables_in_return(true)
       end
 
       def get_running_instances do

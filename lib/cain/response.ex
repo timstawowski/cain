@@ -2,6 +2,10 @@ defmodule Cain.Response do
   @type response :: %{optional(String.t()) => any()} | %{}
 
   defmodule Helper do
+    def variables_in_return(%{"variables" => variables} = response, true) when is_map(response) do
+      Map.put(response, "variables", Cain.Variable.parse(variables))
+    end
+
     def variables_in_return(response, true) when is_map(response) do
       Cain.Variable.parse(response)
     end
