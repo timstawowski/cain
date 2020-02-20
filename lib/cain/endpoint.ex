@@ -10,15 +10,48 @@ defmodule Cain.Endpoint do
 
   @middleware [
     Tesla.Middleware.JSON
+    # Tesla.Middleware.Logger
   ]
 
-  def submit(request) do
-    handle_response(GenServer.call(__MODULE__, request))
+  defmacro __using__(_opts) do
+    quote do
+      def get(path, query, body) do
+        {:get, path, query, body}
+        |> Cain.Endpoint.submit()
+      end
+
+      def post(path, query, body) do
+        {:post, path, query, body}
+        |> Cain.Endpoint.submit()
+      end
+
+      def delete(path, query, body, opts) do
+        {:delete, path, query, body}
+        |> Cain.Endpoint.submit(opts)
+      end
+
+      def put(path, query, body) do
+        {:put, path, query, body}
+        |> Cain.Endpoint.submit()
+      end
+    end
   end
 
-  def submit_history({method, path, query, body}) do
+  def submit(request, opts \\ [])
+
+  def submit({method, path, query, body}, true) do
     {method, "/history" <> path, query, body}
-    |> submit()
+  end
+
+  def submit(request, false) do
+    request
+  end
+
+  def submit(request, opts) do
+    history = Keyword.get(opts, :history, false)
+
+    GenServer.call(__MODULE__, submit(request, history))
+    |> handle_response()
   end
 
   def start_link(args \\ []) do
@@ -33,6 +66,10 @@ defmodule Cain.Endpoint do
     {:reply, Tesla.get(state, path, query: query), state}
   end
 
+  def handle_call({:put, path, query, body}, _from, state) do
+    {:reply, Tesla.put(state, path, body, query: query), state}
+  end
+
   def handle_call({:post, path, _query, body}, _from, state) do
     {:reply, Tesla.post(state, path, body), state}
   end
@@ -41,14 +78,20 @@ defmodule Cain.Endpoint do
     {:reply, Tesla.delete(state, path, query: query), state}
   end
 
+  defp handle_response({:ok, %Tesla.Env{status: status, body: ""}})
+       when status in @success_codes do
+    :ok
+  end
+
   defp handle_response({:ok, %Tesla.Env{status: status, body: body}})
        when status in @success_codes do
-    {:ok, body}
+    body
   end
 
   defp handle_response({:ok, %Tesla.Env{status: status, body: body}}) do
     Logger.error("Camunda Response ERROR with: #{inspect(body, pretty: true)}")
-    {:error, Error.cast(status, body)}
+    error = Error.cast(status, body)
+    {:error, error.message}
   end
 
   defp handle_response({:error, reason}) when is_binary(reason) do

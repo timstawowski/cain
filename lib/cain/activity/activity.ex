@@ -10,7 +10,7 @@ defmodule Cain.Activity do
       def cast(params, extend: :full) do
         params
         |> cast
-        |> Cain.Activity.extend_cast(unquote(extentional_fields))
+        |> Cain.Activity.__extend_cast__(unquote(extentional_fields))
       end
 
       def cast(params, extend: [only: field]) when is_atom(field) do
@@ -22,23 +22,19 @@ defmodule Cain.Activity do
 
         params
         |> cast
-        |> Cain.Activity.extend_cast(filtered)
+        |> Cain.Activity.__extend_cast__(filtered)
       end
 
-      def get_extensional_fields do
-        unquote(extentional_fields)
-        |> Keyword.keys()
-      end
+      def get_extensional_fields, do: Keyword.keys(unquote(extentional_fields))
     end
   end
 
-  def extend_cast(activity, extentional_fields) do
+  def __extend_cast__(activity, extentional_fields) do
     Enum.reduce(extentional_fields, activity, fn {field, func}, activity ->
       Map.put(
         activity,
         field,
         func.(activity.id)
-        |> Cain.Endpoint.submit()
         |> case do
           {:ok, response} -> response
           _error -> :error

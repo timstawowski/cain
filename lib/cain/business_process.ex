@@ -1,7 +1,6 @@
 defmodule Cain.BusinessProcess do
   # alias Cain.ProcessInstance
   alias __MODULE__
-  alias Cain.Endpoint
 
   alias Cain.Endpoint.{
     ProcessDefinition,
@@ -10,15 +9,17 @@ defmodule Cain.BusinessProcess do
     Message
   }
 
+  import Cain.Variable, only: [cast: 1, parse: 1]
+
   defmacro __using__(params) do
-    key = Keyword.get(params, :definition_key)
+    definition_key = Keyword.get(params, :definition_key)
 
     cond do
-      is_nil(key) ->
+      is_nil(definition_key) ->
         raise IO.warn("definition_key must be provided!")
 
       true ->
-        Module.put_attribute(__CALLER__.module, :key, key)
+        Module.put_attribute(__CALLER__.module, :definition_key, definition_key)
     end
 
     quote do
@@ -33,8 +34,8 @@ defmodule Cain.BusinessProcess do
           Keyword.get(opts, :start_instructions)
           |> BusinessProcess.create_instructions()
 
-        strategy = Keyword.get(opts, :strategy, {:key, @key})
-        variables = Cain.Variable.cast(params)
+        strategy = Keyword.get(opts, :strategy, {:key, @definition_key})
+        variables = cast(params)
 
         request = %{
           "businessKey" => business_key,
@@ -44,27 +45,21 @@ defmodule Cain.BusinessProcess do
         }
 
         ProcessDefinition.start_instance(strategy, request)
-        |> Endpoint.submit()
       end
 
       def get_process_instance_by_business_key(business_key) do
         ProcessInstance.get_list(%{
           "businessKey" => business_key,
-          "processDefinitionKey" => @key
+          "processDefinitionKey" => @definition_key
         })
-        |> Endpoint.submit()
       end
 
-      def get_current_activity(process_instance_id, type: :user_task) do
-        {:ok, task_list} =
-          Task.get_list(%{"processInstanceId" => process_instance_id})
-          |> Endpoint.submit()
+      def get_user_tasks(process_instance_id) do
+        Task.get_list(%{"processInstanceId" => process_instance_id})
       end
 
-      def get_current_activity(process_instance_id) do
-        process_instance_id
-        |> ProcessInstance.get_activity_instance()
-        |> Endpoint.submit()
+      def get_activities(process_instance_id) do
+        ProcessInstance.get_activity_instance(process_instance_id)
       end
 
       def get_variable_by_name(process_instance_id, variable_name, opts \\ []) do
@@ -77,71 +72,26 @@ defmodule Cain.BusinessProcess do
           },
           %{"deserializeValue" => deserializedValues?}
         )
-        |> Endpoint.submit()
-      end
-
-      def delete_process_instance(process_instance_id, opts \\ []) do
-        active? = Keyword.get(opts, :active?, true)
-        with_history? = Keyword.get(opts, :with_history?, true)
-
-        process_instance_id
-        |> ProcessInstance.delete()
-        |> Endpoint.submit()
         |> case do
-          {:ok, _resposne} ->
-            if with_history? do
-              with {:ok, _resposne} <-
-                     process_instance_id
-                     |> ProcessInstance.delete()
-                     |> Endpoint.submit_history() do
-                :ok
-              else
-                history_error ->
-                  history_error
-              end
-            else
-              :ok
-            end
+          variable when is_map(variable) ->
+            parse(%{variable_name => variable})
 
           error ->
             error
         end
       end
 
-      # def get_current_user_task(business_key, opts \\ [], forms_spec \\ unquote(forms_spec))
+      def delete_process_instance(process_instance_id, opts \\ []) do
+        with_history? = Keyword.get(opts, :with_history?, true)
 
-      # def get_current_user_task(business_key, opts, forms_spec) do
-      #   with_form_data? = Keyword.get(opts, :with_form_data?, false)
+        response = ProcessInstance.delete(process_instance_id, %{})
 
-      #   {:ok, current_tasks} =
-      #     Task.get_list(%{
-      #       # "taskDefinitionKey" => task_definition_key,
-      #       "processInstanceBusinessKey" => business_key,
-      #       # "processDefinitionKey" => @key,
-      #       "active" => true
-      #     })
-      #     |> Endpoint.submit()
-
-      #   if with_form_data? do
-      #     task_definition_key =
-      #       List.first(current_tasks)
-      #       |> Map.get("taskDefinitionKey")
-      #       |> String.to_existing_atom()
-
-      #     Enum.map(current_tasks, fn %{"id" => task_id} = task ->
-      #       Task.get_task_form_variables(task_id, %{
-      #         "variableNames" =>
-      #           Keyword.get(forms_spec, task_definition_key)
-      #           |> Keyword.keys()
-      #           |> Enum.map(&Atom.to_string/1)
-      #           |> Enum.join(",")
-      #       })
-      #       |> Endpoint.submit()
-      #     end)
-      #   else
-      #     current_tasks
-      #   end
-      # end
+        if with_history? && response == :ok do
+          ProcessInstance.delete(process_instance_id, %{}, history: true)
+        else
+          response
+        end
+      end
 
       def correlate_message(identifier, message, process_variables \\ %{}, opts \\ [])
 
@@ -165,79 +115,24 @@ defmodule Cain.BusinessProcess do
 
       def __correlate_message__(identifier, message_name, process_variables, opts) do
         with_result_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, false)
+        result_enabled? = Keyword.get(opts, :result_enabled?, with_result_variables_in_return?)
 
         Map.merge(identifier, %{
           "messageName" => message_name,
-          "processVariables" => process_variables,
-          "resultEnabled" => with_result_variables_in_return?,
+          "processVariables" => cast(process_variables),
+          "resultEnabled" => result_enabled?,
           "variablesInResultEnabled" => with_result_variables_in_return?
         })
         |> Message.correlate()
-        |> Endpoint.submit()
-      end
-
-      def trigger_user_task_bpmn_error(business_key, error_code, error_message, variables) do
-        Task.get_list(%{
-          "processInstanceBusinessKey" => business_key,
-          # "processDefinitionKey" => @key,
-          "active" => true
-        })
-        |> Endpoint.submit()
         |> case do
-          {:ok, []} ->
-            {:error, "No open tasks for claim: #{business_key}!"}
-
-          {:ok, [%{"id" => task_id}] = response} ->
-            Task.handle_bpmn_error(task_id, %{
-              "errorCode" => error_code,
-              "errorMessage" => error_message,
-              "variables" => variables
-            })
-            |> Endpoint.submit()
-        end
-      end
-
-      def complete_user_task(
-            business_key,
-            params \\ %{},
-            opts \\ []
-          )
-
-      def complete_user_task(business_key, params, opts) do
-        with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
-        variables = Cain.Variable.cast(params)
-
-        Task.get_list(%{
-          "processInstanceBusinessKey" => business_key,
-          # "processDefinitionKey" => @key,
-          "active" => true
-        })
-        |> Endpoint.submit()
-        |> case do
-          {:ok, []} ->
-            {:error, "No open tasks for claim: #{business_key}!"}
-
-          {:ok, [%{"id" => task_id}] = response} ->
-            task_id
-            |> Task.complete(%{
-              "variables" => variables,
-              "withVariablesInReturn" => with_variables_in_return?
-            })
-            |> Endpoint.submit()
-            |> case do
-              {:ok, variables} ->
-                variables
-                |> Cain.Variable.parse()
-
-              error ->
-                error
+          response when is_list(response) ->
+            if with_result_variables_in_return? do
+              Enum.map(response, fn %{"variables" => variables} = chunk ->
+                Map.put(chunk, "variables", parse(variables))
+              end)
+            else
+              response
             end
-
-          {:ok, list_of_matching_tasks} ->
-            {:error, "Multiple open tasks found for claim: #{business_key}"}
-
-          error ->
-            error
         end
       end
     end

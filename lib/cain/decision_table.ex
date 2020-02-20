@@ -20,7 +20,6 @@ defmodule Cain.DecisionTable do
         DecisionDefinition.evaluate(strategy, %{
           "variables" => Cain.Variable.cast(body)
         })
-        |> Endpoint.submit()
         |> case do
           {:ok, response} ->
             {:ok, response |> Enum.map(&Cain.Variable.parse(&1))}

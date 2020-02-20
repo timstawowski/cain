@@ -68,7 +68,6 @@ defmodule Cain.ProcessInstance do
   def handle_continue(:init, process_instance) do
     {:ok, activity_instance} =
       Cain.Endpoint.ProcessInstance.get_activity_instance(process_instance.id)
-      |> Cain.Endpoint.submit()
 
     init_state = %__MODULE__{
       process_instance

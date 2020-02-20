@@ -1,4 +1,6 @@
 defmodule Cain.Endpoint.ProcessDefinition do
+  use Cain.Endpoint
+
   def start_instance({:id, id}, body) do
     start_instance("/process-definition/#{id}/start", body)
   end
@@ -12,10 +14,10 @@ defmodule Cain.Endpoint.ProcessDefinition do
   end
 
   def start_instance(path, body) do
-    {:post, path, %{}, body}
+    post(path, %{}, body)
   end
 
   def restart_process_instance(id, body) do
-    {:post, "/process-definition/#{id}/restart", %{}, body}
+    post("/process-definition/#{id}/restart", %{}, body)
   end
 end

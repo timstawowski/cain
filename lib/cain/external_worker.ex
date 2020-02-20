@@ -1,8 +1,8 @@
 defmodule Cain.ExternalWorker do
   use GenServer
   require Logger
-  import Cain.Endpoint, only: [submit: 1]
   alias Cain.Variable
+
   alias Cain.Endpoint.ExternalTask
 
   defstruct [
@@ -112,6 +112,7 @@ defmodule Cain.ExternalWorker do
             })
 
           {:incident, message, details, opts} ->
+            # TODO: setting retries causes endless-loop
             retries = Keyword.get(opts, :retries, 0)
             retry_time_out_in_ms = Keyword.get(opts, :retry_time_out_in_ms, 3000)
 
@@ -128,14 +129,6 @@ defmodule Cain.ExternalWorker do
               "External_Worker recievd invalid function result: #{inspect(error, pretty: true)}"
             )
         end
-        |> case do
-          :ok ->
-            nil
-
-          valid_request ->
-            submit(valid_request)
-        end
-
         {:noreply, state}
 
       [] ->
@@ -159,14 +152,13 @@ defmodule Cain.ExternalWorker do
     }
     |> Map.put("topics", Enum.map(state.topics, &create_topics(&1)))
     |> ExternalTask.fetch_and_lock()
-    |> submit()
     |> case do
-      {:ok, body} ->
+      {:error, message} ->
+        IO.warn("Error while fetching topics! Response message: #{message}")
+
+      body ->
         Enum.map(body, fn task -> Map.update!(task, "variables", &Variable.parse/1) end)
         |> Enum.each(&spawn_task(&1, state))
-
-      _ ->
-        IO.warn("Error while fetching topics!")
     end
   end
 
@@ -202,7 +194,6 @@ defmodule Cain.ExternalWorker do
         "retries" => 0,
         "retryTimeout" => 0
       })
-      |> submit()
 
       error
   end

@@ -1,4 +1,6 @@
 defmodule Cain.Endpoint.DecisionDefinition do
+  use Cain.Endpoint
+
   def evaluate({:id, id}, body) do
     evaluate("/decision-definition/#{id}/evaluate", body)
   end
@@ -12,6 +14,6 @@ defmodule Cain.Endpoint.DecisionDefinition do
   end
 
   def evaluate(path, body) do
-    {:post, path, %{}, body}
+    post(path, %{}, body)
   end
 end
