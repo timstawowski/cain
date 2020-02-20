@@ -47,19 +47,18 @@ defmodule Cain.BusinessProcess do
         |> Endpoint.submit()
       end
 
-      def get_current_process_instance(super_process_instance_id) do
-        ProcessInstance.get_list(%{
-          "superProcessInstance" => super_process_instance_id
-        })
-        |> Endpoint.submit()
-      end
-
       def get_process_instance_by_business_key(business_key) do
         ProcessInstance.get_list(%{
           "businessKey" => business_key,
           "processDefinitionKey" => @key
         })
         |> Endpoint.submit()
+      end
+
+      def get_current_activity(process_instance_id, type: :user_task) do
+        {:ok, task_list} =
+          Task.get_list(%{"processInstanceId" => process_instance_id})
+          |> Endpoint.submit()
       end
 
       def get_current_activity(process_instance_id) do
