@@ -3,7 +3,7 @@ defmodule Cain.UserTask do
   use Cain.Activity,
     extentional_fields: [
       {:identity_links, &Cain.Endpoint.Task.IdentityLinks.get_list/1},
-      {:form_variables, &Cain.Endpoint.Task.get_task_form_variables/1}
+      {:form_variables, &Cain.Endpoint.Task.get_task_form_variables/2}
     ]
 
   alias Cain.UserTask
