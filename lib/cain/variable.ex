@@ -61,6 +61,10 @@ defmodule Cain.Variable do
     :error
   end
 
+  defp __parse__(%{"value" => value, "type" => "Json"}) when is_map(value) do
+    value
+  end
+
   defp __parse__(%{"value" => value, "type" => "Json"}) do
     Jason.decode!(value)
   end

@@ -6,10 +6,9 @@ defmodule Cain.UserTask do
       {:form_variables, &Cain.Endpoint.Task.get_task_form_variables/2}
     ]
 
-  alias Cain.UserTask
-  alias Cain.{Endpoint.Task, Variable}
+  alias Cain.{Endpoint.Task, UserTask, Variable}
 
-  @type user_task() :: %Cain.UserTask{}
+  @type user_task() :: %UserTask{}
 
   @enforce_keys [
     :created,
@@ -88,12 +87,12 @@ defmodule Cain.UserTask do
     Task.delegate(id, user_id)
   end
 
-  @spec resolve(UserTask.t(), Cain.Variable.t()) :: :ok | {:error, String.t()}
+  @spec resolve(UserTask.t(), Variable.t()) :: :ok | {:error, String.t()}
   def resolve(%__MODULE__{id: id}, variables) do
     Task.resolve(id, variables)
   end
 
-  @spec submit_form(UserTask.t(), Cain.Variable.t(), list()) :: :ok | {:error, String.t()}
+  @spec submit_form(UserTask.t(), Variable.t(), list()) :: :ok | {:error, String.t()}
   def submit_form(%__MODULE__{id: task_id}, params, opts) do
     with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
 
@@ -109,7 +108,7 @@ defmodule Cain.UserTask do
 
   To indicate whether the response should contain the process variables or not `with_variables_in_return?` can be set to `true` default is false.
   """
-  @spec complete(Cain.UserTask.t(), Variable.t(), list()) ::
+  @spec complete(UserTask.t(), Variable.t(), list()) ::
           :ok | Variable.t() | {:error, String.t()}
   def complete(%__MODULE__{id: task_id}, params \\ %{}, opts \\ []) do
     with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)

@@ -30,6 +30,8 @@ defmodule Cain.BusinessProcess do
           )
 
       def start_instance(business_key, params, opts) do
+        with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
+
         start_instructions =
           Keyword.get(opts, :start_instructions)
           |> BusinessProcess.create_instructions()
@@ -41,11 +43,11 @@ defmodule Cain.BusinessProcess do
           "businessKey" => business_key,
           "variables" => variables,
           "startInstructions" => start_instructions,
-          "withVariablesInReturn" => true
+          "withVariablesInReturn" => with_variables_in_return?
         }
 
         ProcessDefinition.start_instance(strategy, request)
-        |> Cain.Response.Helper.variables_in_return(true)
+        |> Cain.Response.Helper.variables_in_return(with_variables_in_return?)
       end
 
       def get_running_instances do
@@ -68,14 +70,14 @@ defmodule Cain.BusinessProcess do
       end
 
       def get_variable_by_name(process_instance_id, variable_name, opts \\ []) do
-        deserializedValues? = Keyword.get(opts, :deserialized_values?, true)
+        deserialize_values? = Keyword.get(opts, :deserialize_values?, true)
 
         ProcessInstance.Variable.get(
           %{
             id: process_instance_id,
             variable_name: variable_name
           },
-          %{"deserializeValue" => deserializedValues?}
+          %{"deserializeValue" => deserialize_values?}
         )
         |> case do
           variable when is_map(variable) ->
@@ -119,25 +121,24 @@ defmodule Cain.BusinessProcess do
       end
 
       def __correlate_message__(identifier, message_name, process_variables, opts) do
-        with_result_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, false)
-        result_enabled? = Keyword.get(opts, :result_enabled?, with_result_variables_in_return?)
+        with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, false)
+        result_enabled? = Keyword.get(opts, :result_enabled?, with_variables_in_return?)
 
-        Map.merge(identifier, %{
-          "messageName" => message_name,
-          "processVariables" => cast(process_variables),
-          "resultEnabled" => result_enabled?,
-          "variablesInResultEnabled" => with_result_variables_in_return?
-        })
-        |> Message.correlate()
-        |> case do
-          response when is_list(response) ->
-            if with_result_variables_in_return? do
-              Enum.map(response, fn %{"variables" => variables} = chunk ->
-                Map.put(chunk, "variables", parse(variables))
-              end)
-            else
-              response
-            end
+        response =
+          Map.merge(identifier, %{
+            "messageName" => message_name,
+            "processVariables" => cast(process_variables),
+            "resultEnabled" => result_enabled?,
+            "variablesInResultEnabled" => with_variables_in_return?
+          })
+          |> Message.correlate()
+
+        if result_enabled? do
+          Enum.map(response, fn chunk ->
+            Cain.Response.Helper.variables_in_return(chunk, with_variables_in_return?)
+          end)
+        else
+          response
         end
       end
     end

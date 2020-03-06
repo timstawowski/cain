@@ -1,5 +1,4 @@
 defmodule Cain.DecisionTable do
-  alias Cain.Endpoint
   alias Cain.Endpoint.DecisionDefinition
 
   defmacro __using__(params) do

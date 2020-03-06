@@ -10,27 +10,32 @@ defmodule Cain.Activity do
         struct(__MODULE__, pre_cast(params))
       end
 
-      def cast(params, extend: :full) do
-        params
-        |> cast
-        |> Cain.Activity.__extend_cast__(unquote(extentional_fields), [])
-      end
-
-      def cast(params, extend: [only: field, query: query])
-          when is_atom(field) do
-        cast(params, extend: [only: [field], query: query])
-      end
-
       def cast(params, opts) do
         extend = Keyword.get(opts, :extend)
-        fields = Keyword.get(extend, :only)
-        query = Keyword.get(extend, :query, [])
+        query = Keyword.get(opts, :query, [])
 
-        filtered = Keyword.take(unquote(extentional_fields), fields)
+        fields =
+          case extend do
+            :full ->
+              unquote(extentional_fields)
+
+            only: only ->
+              filtered =
+                if is_atom(only) do
+                  [only]
+                else
+                  only
+                end
+
+              Keyword.take(unquote(extentional_fields), filtered)
+
+            nil ->
+              []
+          end
 
         params
         |> cast
-        |> Cain.Activity.__extend_cast__(filtered, query)
+        |> Cain.Activity.__extend_cast__(fields, query)
       end
 
       def get_extensional_fields, do: Keyword.keys(unquote(extentional_fields))

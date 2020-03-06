@@ -1,5 +1,5 @@
 defmodule Cain.Response do
-  @type response :: %{optional(String.t()) => any()} | %{}
+  @type t :: %{optional(String.t()) => any()} | %{}
 
   defmodule Helper do
     def variables_in_return(%{"variables" => variables} = response, true) when is_map(response) do
@@ -12,7 +12,7 @@ defmodule Cain.Response do
 
     def variables_in_return(response, false), do: response
 
-    @spec pre_cast(Cain.Response.t()) :: map() | :error
+    @spec pre_cast(Cain.Response.t()) :: list() | :error
     def pre_cast(params) when is_map(params) do
       Enum.reduce(params, %{}, fn {key, value}, acc ->
         Map.put(acc, format_key(key), value)

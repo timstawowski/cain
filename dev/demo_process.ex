@@ -3,11 +3,21 @@ defmodule DemoProcess do
     definition_key: "DEMO"
 
   def get_current_user_task(process_instance_id) do
-    get_user_tasks(process_instance_id)
-    |> List.first()
-    |> Cain.UserTask.cast(
-      # extend: :full
-      extend: [only: :form_variables, query: [variable_names: "desired_state"]]
-    )
+    user_task_list = get_user_tasks(process_instance_id)
+
+    case List.first(user_task_list) do
+      nil ->
+        "No open user tasks for: #{process_instance_id}"
+
+      user_task ->
+        user_task
+        |> Cain.UserTask.cast(
+          # extend: :full,
+          extend: [
+            only: [:form_variables]
+          ],
+          query: [variable_names: "desired_state", deserialize_values: true]
+        )
+    end
   end
 end
