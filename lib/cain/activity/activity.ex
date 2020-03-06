@@ -6,57 +6,56 @@ defmodule Cain.Activity do
     extentional_fields = Keyword.get(opts, :extentional_fields)
 
     quote do
-      def cast(params) do
+      def cast(params, opts \\ [])
+
+      def cast(params, []) do
         struct(__MODULE__, pre_cast(params))
       end
 
       def cast(params, opts) do
         extend = Keyword.get(opts, :extend)
-        query = Keyword.get(opts, :query, [])
 
-        fields =
-          case extend do
-            :full ->
-              unquote(extentional_fields)
-
-            only: only ->
-              filtered =
-                if is_atom(only) do
-                  [only]
-                else
-                  only
-                end
-
-              Keyword.take(unquote(extentional_fields), filtered)
-
-            nil ->
-              []
-          end
-
-        params
-        |> cast
-        |> Cain.Activity.__extend_cast__(fields, query)
+        struct(__MODULE__, pre_cast(params))
+        |> Cain.Activity.__extend__(unquote(extentional_fields), extend)
       end
 
-      def get_extensional_fields, do: Keyword.keys(unquote(extentional_fields))
+      def get_extentional_fields, do: Keyword.keys(unquote(extentional_fields))
     end
   end
 
-  #  TODO: looks shit but works
-  def __extend_cast__(activity, extentional_fields, query) do
-    Enum.reduce(extentional_fields, activity, fn {field, func}, activity ->
+  def __extend__(activity, _extentional_fields, nil) do
+    activity
+  end
+
+  def __extend__(activity, extentional_fields, :full) do
+    __extend__(activity, extentional_fields, only: Keyword.keys(extentional_fields))
+  end
+
+  def __extend__(activity, extentional_fields, only: only) do
+    extentions =
+      cond do
+        is_atom(only) ->
+          Keyword.take(extentional_fields, [only])
+
+        is_list(only) && Keyword.keyword?(only) ->
+          Keyword.take(extentional_fields, Keyword.keys(only))
+
+        is_list(only) ->
+          Keyword.take(extentional_fields, only)
+      end
+
+    Enum.reduce(extentions, activity, fn {field, func}, activity ->
       func_info = Function.info(func)
-      arity = Keyword.get(func_info, :arity)
 
       Map.put(
         activity,
         field,
-        if arity == 1 do
+        if func_info[:arity] == 1 do
           func.(activity.id)
         else
           func.(
             activity.id,
-            pre_cast_query(query)
+            pre_cast_query(only[field])
           )
           |> variables_in_return(true)
         end

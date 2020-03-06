@@ -12,11 +12,10 @@ defmodule DemoProcess do
       user_task ->
         user_task
         |> Cain.UserTask.cast(
-          # extend: :full,
-          extend: [
-            only: [:form_variables]
-          ],
-          query: [variable_names: "desired_state", deserialize_values: true]
+          extend: :full
+          # extend: [only: :identity_links]
+          # extend: [only: [:form_variables, :identity_links]]
+          # extend: [only: [form_variables: [variable_names: "following_status", deserialize_values: false]]]
         )
     end
   end

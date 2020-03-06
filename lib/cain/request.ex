@@ -1,5 +1,9 @@
 defmodule Cain.Request do
   defmodule Helper do
+    def pre_cast_query([]), do: %{}
+
+    def pre_cast_query(nil), do: %{}
+
     def pre_cast_query(query_list) when is_list(query_list) do
       Enum.reduce(query_list, %{}, fn {key, value}, acc ->
         Map.put(acc, format_query(key), value)
