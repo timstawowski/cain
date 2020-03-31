@@ -1,3 +1,23 @@
+defprotocol Cain.ActivityByType do
+  def get(term)
+end
+
+defimpl Cain.ActivityByType, for: Cain.ProcessInstance.ActivityInstance do
+  def get(%{
+        activity_type: "userTask",
+        name: name,
+        parent_activity_instance_id: parent_activity_instance_id
+      }) do
+    Cain.Endpoint.Task.get_list(%{
+      "processInstanceId" => parent_activity_instance_id,
+      "name" => name
+    })
+    |> List.first()
+    |> Cain.UserTask.State.cast()
+    |> Cain.UserTask.cast()
+  end
+end
+
 defmodule Cain.Activity do
   import Cain.Request.Helper
   import Cain.Response.Helper

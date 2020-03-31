@@ -1,12 +1,15 @@
 defmodule Cain.ProcessInstance do
   use GenServer
 
+  alias Cain.ProcessInstance.ActivityInstance
+
   defstruct [
     :business_key,
     :links,
     :suspended?,
     :ended?,
-    :variables
+    :variables,
+    :current_activities
   ]
 
   defmodule State do
@@ -14,50 +17,60 @@ defmodule Cain.ProcessInstance do
       ## meta / rest api cache ##
       :business_key,
       :case_instance_id,
-      # own genserver?
       :definition_id,
       :ended?,
       :id,
       :links,
       :suspended?,
       :tenant_id,
-      # :running_processes,
+      :activity_instance,
       variables: %{}
     ]
   end
 
-  def cast(%State{} = state) do
-    struct(__MODULE__, Map.from_struct(state))
+  def cast(
+        %State{
+          activity_instance: %ActivityInstance{child_activity_instances: child_activity_instances}
+        } = state
+      ) do
+    current_activities =
+      Enum.map(child_activity_instances, fn child_activity ->
+        try do
+          Cain.ActivityByType.get(child_activity)
+        rescue
+          _ -> %{name: child_activity.activity_type}
+        end
+      end)
+
+    params =
+      state
+      |> Map.from_struct()
+      |> Map.put(:current_activities, current_activities)
+
+    struct(__MODULE__, params)
   end
 
   # API
 
   def start_link(
-        %{"businessKey" => business_key, "definitionId" => definition_id} = process_instance
+        %{"id" => process_instance_id, "definitionId" => definition_id} = process_instance
       ) do
-    GenServer.start_link(__MODULE__, process_instance, name: via(definition_id, business_key))
+    GenServer.start_link(__MODULE__, process_instance,
+      name: via(definition_id, process_instance_id)
+    )
   end
 
-  def add_variables(definition_id, business_key, variables) do
-    GenServer.cast(via(definition_id, business_key), {:add_variables, variables})
+  def add_variables(definition_id, process_instance_id, variables) do
+    GenServer.cast(via(definition_id, process_instance_id), {:add_variables, variables})
   end
 
-  # def get_activity(business_key, type) do
-  #   GenServer.call(via(business_key), {:activity, type})
-  # end
-
-  def get_process_instance(definition_id, business_key) do
-    GenServer.call(via(definition_id, business_key), :get_process_instance)
+  def get_process_instance(definition_id, process_instance_id) do
+    GenServer.call(via(definition_id, process_instance_id), :get_process_instance)
   end
 
-  # def get_process_instance(nil, definition_key) do
-  #   GenServer.call(server, request, timeout \\ 5000)
-  #   # GenServer.call(via(business_key), :get_process_instance)
-  # end
-
-  def via(definition_id, business_key) do
+  def via(definition_id, process_instance_id) do
     {:via, Cain.ProcessInstance.Registry,
-     {:process_definition_id, definition_id, {:business_key, business_key}}}
+     {:process_definition_id, definition_id, {:process_instance_id, process_instance_id}}}
   end
 
   # SERVER
@@ -70,16 +83,17 @@ defmodule Cain.ProcessInstance do
   end
 
   def handle_continue(:cast, %State{id: process_instance_id} = process_instance) do
-    # activity_instance =
-    Cain.Endpoint.ProcessInstance.get_activity_instance(process_instance_id)
-    |> Cain.ProcessInstance.ActivityInstance.DynamicSupervisor.start_instance()
+    activity_instance =
+      Cain.Endpoint.ProcessInstance.get_activity_instance(process_instance_id)
+      |> Cain.ProcessInstance.ActivityInstance.cast_activity_instance()
 
     variables =
       Cain.Endpoint.ProcessInstance.Variables.get_list(process_instance_id)
       |> Cain.Variable.parse()
       |> Enum.reduce(%{}, fn {key, value}, acc -> Map.put(acc, String.to_atom(key), value) end)
 
-    {:noreply, %State{process_instance | variables: variables}}
+    {:noreply,
+     %State{process_instance | activity_instance: activity_instance, variables: variables}}
   end
 
   def handle_cast({:add_variables, variables}, %{id: id} = process_instances)
@@ -98,18 +112,6 @@ defmodule Cain.ProcessInstance do
 
     {:noreply, Map.put(process_instances, :variables, variables)}
   end
-
-  # def handle_call(
-  #       {:activity, type},
-  #       _from,
-  #       %__MODULE__{activity_instance: activity_instance} = process_instances
-  #     ) do
-  #   filtered = ActivityInstance.filter_by_type(activity_instance, type)
-
-  #   import IEx
-  #   IEx.pry()
-  #   {:reply, process_instances, process_instances}
-  # end
 
   def handle_call(:get_process_instance, _from, process_instances) do
     {:reply, process_instances, process_instances}

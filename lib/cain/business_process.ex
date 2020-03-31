@@ -21,8 +21,8 @@ defmodule Cain.BusinessProcess do
     :suspended?,
     :version,
     :version_tag,
-    :running_process_instances,
-    :running_process_instances_count
+    :process_instances,
+    :process_instances_count
   ]
 
   defmodule State do
@@ -204,8 +204,8 @@ defmodule Cain.BusinessProcess do
     params =
       state
       |> Map.from_struct()
-      |> Map.put(:running_process_instances, running_process_instances)
-      |> Map.put(:running_process_instances_count, Enum.count(running_process_instances))
+      |> Map.put(:process_instances, running_process_instances)
+      |> Map.put(:process_instances_count, Enum.count(running_process_instances))
 
     struct(__MODULE__, params)
   end
@@ -219,16 +219,16 @@ defmodule Cain.BusinessProcess do
     business_process = get(definition_key)
 
     business_process
-    |> Map.get(:running_process_instances)
+    |> Map.get(:process_instances)
     |> case do
       nil ->
         Cain.ProcessInstance.Registry.registered()
         |> Map.keys()
         |> Enum.reduce([], fn {:process_definition_id, process_definition_id,
-                               {:business_key, business_key}},
+                               {:process_instance_id, process_instance_id}},
                               acc ->
           process_instance =
-            Cain.ProcessInstance.get_process_instance(process_definition_id, business_key)
+            Cain.ProcessInstance.get_process_instance(process_definition_id, process_instance_id)
             |> Cain.ProcessInstance.cast()
 
           if process_definition_id == business_process.id do
@@ -238,8 +238,8 @@ defmodule Cain.BusinessProcess do
           end
         end)
 
-      running_process_instances ->
-        running_process_instances
+      process_instances ->
+        process_instances
     end
   end
 
