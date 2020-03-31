@@ -46,6 +46,9 @@ defmodule Cain.UserTask do
     :identity_links
   ]
 
+  # def cast(%Cain.ProcessInstance.ActivityInstance{activity_type: "userTask"} = activity) do
+  # end
+
   @doc """
   Changes the assignee of a task to a specific user.
   """
