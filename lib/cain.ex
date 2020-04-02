@@ -11,9 +11,7 @@ defmodule Cain do
       supervisor(Cain.BusinessProcess.Registry, []),
       supervisor(Cain.BusinessProcess.DynamicSupervisor, []),
       supervisor(Cain.ProcessInstance.Registry, []),
-      supervisor(Cain.ProcessInstance.DynamicSupervisor, []),
-      supervisor(Cain.ProcessInstance.ActivityInstance.Registry, []),
-      supervisor(Cain.ProcessInstance.ActivityInstance.DynamicSupervisor, [])
+      supervisor(Cain.ProcessInstance.DynamicSupervisor, [])
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)

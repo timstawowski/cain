@@ -48,4 +48,20 @@ defmodule Cain.Endpoint.ProcessDefinition do
   def get_diagram(path) do
     get(path, %{}, %{})
   end
+
+  def suspend({:id, id}, body) do
+    suspend("/process-definition/#{id}/suspended", body)
+  end
+
+  def suspend({:key, key}, body) do
+    suspend("/process-definition/key/#{key}/suspended", body)
+  end
+
+  def suspend({:key, key, {:tenant_id, tenant_id}}, body) do
+    suspend("/process-definition/key/#{key}/tenant-id/#{tenant_id}/suspended", body)
+  end
+
+  def suspend(path, body) do
+    put(path, %{}, body)
+  end
 end

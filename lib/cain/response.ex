@@ -15,7 +15,9 @@ defmodule Cain.Response do
     @spec pre_cast(Cain.Response.t()) :: list() | :error
     def pre_cast(params) when is_map(params) do
       Enum.reduce(params, %{}, fn {key, value}, acc ->
-        Map.put(acc, format_key(key), value)
+        if format_key(key) != :needles do
+          Map.put(acc, format_key(key), value)
+        end
       end)
       |> Map.to_list()
     end
@@ -26,14 +28,18 @@ defmodule Cain.Response do
       key
     end
 
-    defp format_key(key) when key in ["ended", "suspended"] do
+    defp format_key(key) when key in ["ended", "suspended", "startableInTaskList"] do
       format_key(key <> "?")
     end
 
     defp format_key(key) do
-      key
-      |> Macro.underscore()
-      |> String.to_existing_atom()
+      try do
+        key
+        |> Macro.underscore()
+        |> String.to_existing_atom()
+      rescue
+        ArgumentError -> :needless
+      end
     end
   end
 end

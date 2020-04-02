@@ -1,51 +1,60 @@
 defmodule Cain.ProcessInstance do
   use GenServer
 
-  alias Cain.ProcessInstance.ActivityInstance
-
   defstruct [
     :business_key,
     :links,
     :suspended?,
-    :ended?,
     :variables,
-    :current_activities
+    :tokens,
+    :user_tasks,
+    :sub_processes,
+    :__engine_state__
   ]
 
   defmodule State do
-    defstruct [
-      ## meta / rest api cache ##
-      :business_key,
-      :case_instance_id,
-      :definition_id,
-      :ended?,
-      :id,
-      :links,
-      :suspended?,
-      :tenant_id,
-      :activity_instance,
-      variables: %{}
-    ]
+    defstruct [:__snapshot__, :__timestamp__, :__process_instance_id__]
+
+    defimpl Inspect, for: __MODULE__ do
+      def inspect(%{__timestamp__: timestamp}, _opts) do
+        "#EngineState<latest:#{timestamp}>"
+      end
+    end
   end
 
-  def cast(
-        %State{
-          activity_instance: %ActivityInstance{child_activity_instances: child_activity_instances}
-        } = state
-      ) do
-    current_activities =
-      Enum.map(child_activity_instances, fn child_activity ->
-        try do
-          Cain.ActivityByType.get(child_activity)
-        rescue
-          _ -> %{name: child_activity.activity_type}
-        end
-      end)
+  def cast(process_instance, engine_state, process_instance_id, variables) do
+    child_activities = Map.get(engine_state, "childActivityInstances")
+
+    user_tasks =
+      Cain.ActivityInstance.map_by_type(child_activities, "userTask")
+      |> Enum.map(&Map.get(&1, "name"))
+
+    sub_processes =
+      Cain.ActivityInstance.map_by_type(child_activities, "subProcess")
+      |> Enum.map(&Map.get(&1, "name"))
+
+    links =
+      case process_instance["links"] do
+        [%{"href" => link}] -> [link]
+        links -> links
+      end
 
     params =
-      state
-      |> Map.from_struct()
-      |> Map.put(:current_activities, current_activities)
+      process_instance
+      |> Cain.Response.Helper.pre_cast()
+      |> Keyword.put(:variables, variables)
+      |> Keyword.put(:user_tasks, user_tasks)
+      |> Keyword.put(:sub_processes, sub_processes)
+      |> Keyword.put(:links, links)
+      |> Keyword.put(:tokens, Cain.Activity.count(engine_state))
+      |> Keyword.put(
+        :__engine_state__,
+        struct(State,
+          __snapshot__: child_activities,
+          __timestamp__: :os.system_time(:millisecond),
+          __process_instance_id__: process_instance_id
+        )
+      )
 
     struct(__MODULE__, params)
   end
@@ -61,7 +70,7 @@ defmodule Cain.ProcessInstance do
   end
 
   def add_variables(definition_id, process_instance_id, variables) do
-    GenServer.cast(via(definition_id, process_instance_id), {:add_variables, variables})
+    GenServer.call(via(definition_id, process_instance_id), {:add_variables, variables})
   end
 
   def get_process_instance(definition_id, process_instance_id) do
@@ -76,41 +85,62 @@ defmodule Cain.ProcessInstance do
   # SERVER
 
   def init(process_instance) do
-    # TODO handle continue
-    state = Cain.Response.Helper.pre_cast(process_instance)
-
-    {:ok, struct(State, state), {:continue, :cast}}
+    {:ok, process_instance, {:continue, :cast}}
   end
 
-  def handle_continue(:cast, %State{id: process_instance_id} = process_instance) do
-    activity_instance =
-      Cain.Endpoint.ProcessInstance.get_activity_instance(process_instance_id)
-      |> Cain.ProcessInstance.ActivityInstance.cast_activity_instance()
+  def handle_continue(
+        :cast,
+        %{"id" => process_instance_id} = process_instance_params
+      ) do
+    engine_state = Cain.Endpoint.ProcessInstance.get_activity_instance(process_instance_id)
 
     variables =
       Cain.Endpoint.ProcessInstance.Variables.get_list(process_instance_id)
       |> Cain.Variable.parse()
-      |> Enum.reduce(%{}, fn {key, value}, acc -> Map.put(acc, String.to_atom(key), value) end)
 
-    {:noreply,
-     %State{process_instance | activity_instance: activity_instance, variables: variables}}
+    # |> Enum.reduce(%{}, fn {key, value}, acc -> Map.put(acc, String.to_atom(key), value) end)
+
+    process_instance = cast(process_instance_params, engine_state, process_instance_id, variables)
+
+    {:noreply, process_instance}
   end
 
-  def handle_cast({:add_variables, variables}, %{id: id} = process_instances)
-      when is_map(variables) do
-    casted_variables = Cain.Variable.cast(variables)
+  def handle_call(
+        {:add_variables, new_variables},
+        _from,
+        %{__engine_state__: %{__process_instance_id__: id}, variables: variables} =
+          process_instance
+      ) do
+    casted_variables = Cain.Variable.cast(new_variables)
 
-    casted_variables
-    |> Map.keys()
-    |> Enum.each(fn var_name ->
-      Cain.Endpoint.ProcessInstance.Variables.put_process_variable(%{
-        id: id,
-        var_name: var_name,
-        var_body: casted_variables[var_name]
-      })
-    end)
+    request_process_result =
+      casted_variables
+      |> Map.keys()
+      |> Enum.map(fn var_name ->
+        Cain.Endpoint.ProcessInstance.Variables.put_process_variable(%{
+          id: id,
+          var_name: var_name,
+          var_body: casted_variables[var_name]
+        })
+        |> case do
+          :ok ->
+            :ok
 
-    {:noreply, Map.put(process_instances, :variables, variables)}
+          error ->
+            error
+        end
+      end)
+
+    state =
+      Enum.all?(request_process_result, fn result -> result == :ok end)
+      |> if do
+        %{process_instance | variables: Map.merge(variables, new_variables)}
+      else
+        # reject the variables which failed on adding
+        process_instance
+      end
+
+    {:reply, state, state}
   end
 
   def handle_call(:get_process_instance, _from, process_instances) do

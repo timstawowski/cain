@@ -101,14 +101,14 @@ defmodule Cain.Variable do
     DateTime.truncate(date_time, :millisecond)
   end
 
-  defp cast_date(%DateTime{utc_offset: utc_offset} = date_time) do
+  def cast_date(%DateTime{utc_offset: utc_offset} = date_time) do
     date_time
     |> format_milliseconds()
     |> DateTime.to_iso8601()
     |> format_utc_offset(utc_offset)
   end
 
-  defp cast_date(%Date{} = date) do
+  def cast_date(%Date{} = date) do
     IO.iodata_to_binary([Date.to_iso8601(date), "T00:00:00.000+0000"])
   end
 
