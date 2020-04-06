@@ -13,8 +13,8 @@ defmodule Cain.Endpoint.ProcessInstance do
     get("/process-instance", query, %{})
   end
 
-  def suspend(id, body) do
-    put("/process-instance/#{id}/suspended", %{}, body)
+  def suspend(id, suspend_activate) do
+    put("/process-instance/#{id}/suspended", %{}, %{"suspended" => suspend_activate})
   end
 
   def delete(id, query \\ %{}, opts \\ []) do

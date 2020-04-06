@@ -13,6 +13,10 @@ defmodule Cain.ProcessInstance.Registry do
     |> business_key(business_process_module)
   end
 
+  def registered do
+    GenServer.call(__MODULE__, :registered)
+  end
+
   defp business_key(registry, business_process_module) do
     registry
     |> Map.keys()
@@ -72,6 +76,10 @@ defmodule Cain.ProcessInstance.Registry do
         {:reply, :no, state}
     end
   end
+
+  # def handle_cast({:unregister_name, business_key}, state) do
+  #   {:noreply, Map.delete(state, business_key)}
+  # end
 
   def handle_info({:DOWN, _, :process, pid, _}, state) do
     {:noreply, remove_pid(state, pid)}

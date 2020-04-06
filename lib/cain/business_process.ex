@@ -1,5 +1,4 @@
 defmodule Cain.BusinessProcess do
-  # use GenServer
   use DynamicSupervisor
 
   defstruct [
@@ -24,7 +23,6 @@ defmodule Cain.BusinessProcess do
 
       true ->
         Module.put_attribute(__CALLER__.module, :definition_key, definition_key)
-        Module.register_attribute(__CALLER__.module, :business_keys, accumulate: true)
     end
 
     quote do
@@ -33,14 +31,10 @@ defmodule Cain.BusinessProcess do
       end
 
       def __validate_business_key__(business_key, func) do
-        Cain.BusinessProcess.validate_business_key(@definition_key, business_key)
-        |> case do
-          :ok ->
-            func.()
-
-          _error ->
-            {BusinessKeyError,
-             "Business-key: ‘#{business_key}‘ not alive for process ‘#{@definition_key}‘"}
+        if Cain.BusinessProcess.registered_business_key?(@definition_key, business_key) do
+          func.()
+        else
+          {BusinessKeyError, :unknown}
         end
       end
 
@@ -55,11 +49,15 @@ defmodule Cain.BusinessProcess do
         Cain.BusinessProcess.info(@definition_key)
       end
 
-      def supsend(opts \\ []) do
+      def suspend(opts \\ [])
+
+      def suspend(opts) when is_list(opts) do
         Cain.BusinessProcess.suspend_or_activate(@definition_key, :suspend, opts)
       end
 
-      def activate(opts \\ []) do
+      def activate(opts \\ [])
+
+      def activate(opts) when is_list(opts) do
         Cain.BusinessProcess.suspend_or_activate(@definition_key, :activate, opts)
       end
 
@@ -71,27 +69,36 @@ defmodule Cain.BusinessProcess do
             opts \\ []
           )
 
-      def start_instance(business_key, params, opts) do
-        __validate_business_key__(
+      def start_instance(business_key, params, opts)
+          when is_binary(business_key) and is_map(params) and is_list(opts) do
+        Cain.BusinessProcess.start_instance(@definition_key, business_key, params, opts)
+      end
+
+      def activate_instance(business_key) when is_binary(business_key) do
+        Cain.BusinessProcess.suspend_or_activate_instance(
+          @definition_key,
           business_key,
-          fn ->
-            Cain.BusinessProcess.start_instance(@definition_key, business_key, params, opts)
-          end
+          :activate
         )
+      end
+
+      def suspend_instance(business_key) when is_binary(business_key) do
+        Cain.BusinessProcess.suspend_or_activate_instance(@definition_key, business_key, :suspend)
       end
 
       def get_instances do
         Cain.BusinessProcess.get_instances(@definition_key)
       end
 
-      def get_instance(business_key) do
+      def get_instance(business_key) when is_binary(business_key) do
         __validate_business_key__(
           business_key,
           fn -> Cain.BusinessProcess.get_instance(@definition_key, business_key) end
         )
       end
 
-      def add_instance_variable(business_key, variables) do
+      def add_instance_variable(business_key, variables)
+          when is_binary(business_key) and is_map(variables) do
         __validate_business_key__(
           business_key,
           fn ->
@@ -100,17 +107,26 @@ defmodule Cain.BusinessProcess do
         )
       end
 
+      def delete_instance(business_key, opts \\ [])
+
+      def delete_instance(business_key, opts)
+          when is_binary(business_key) and is_list(opts) do
+        Cain.BusinessProcess.delete_instance(@definition_key, business_key, opts)
+      end
+
       ## ACTIVITY OPERATIONS ##
 
       # -- TASK --
 
       def get_user_tasks(business_key, task_names \\ [])
 
-      def get_user_tasks(business_key, task_names) when is_binary(task_names) do
+      def get_user_tasks(business_key, task_names)
+          when is_binary(business_key) and is_binary(task_names) do
         get_user_tasks(business_key, [task_names])
       end
 
-      def get_user_tasks(business_key, task_names) do
+      def get_user_tasks(business_key, task_names)
+          when is_binary(business_key) and is_list(task_names) do
         __validate_business_key__(
           business_key,
           fn -> Cain.BusinessProcess.get_user_tasks(@definition_key, business_key, task_names) end
@@ -118,7 +134,7 @@ defmodule Cain.BusinessProcess do
       end
 
       def complete_user_task(business_key, task_name, variables \\ %{})
-          when is_binary(business_key) and is_binary(task_name) do
+          when is_binary(business_key) and is_binary(task_name) and is_map(variables) do
         __validate_business_key__(
           business_key,
           fn ->
@@ -219,16 +235,6 @@ defmodule Cain.BusinessProcess do
     struct(__MODULE__, info)
   end
 
-  def validate_business_key(definition_key, business_key) do
-    Cain.ProcessInstance.Registry.business_keys(name(definition_key))
-    |> Enum.member?(business_key)
-    |> if do
-      :ok
-    else
-      {:error, :business_key_not_found}
-    end
-  end
-
   # manually start up
   def start(definition_key) do
     case Cain.Endpoint.ProcessDefinition.get({:key, definition_key}) do
@@ -250,10 +256,10 @@ defmodule Cain.BusinessProcess do
   end
 
   def suspend_or_activate(definition_key, :suspend, opts) do
-    Cain.Endpoint.ProcessDefinition.get(%{key: definition_key})
+    Cain.Endpoint.ProcessDefinition.get({:key, definition_key})
     |> Map.get("suspended")
     |> if do
-      {:error, :already_suspended}
+      {:error, :already_suspend}
     else
       suspend_or_activate(definition_key, %{"suspended" => true}, opts)
     end
@@ -265,7 +271,7 @@ defmodule Cain.BusinessProcess do
     |> if do
       suspend_or_activate(definition_key, %{"suspended" => false}, opts)
     else
-      {:error, :already_activated}
+      {:error, :already_active}
     end
   end
 
@@ -282,6 +288,14 @@ defmodule Cain.BusinessProcess do
     Cain.Endpoint.ProcessDefinition.suspend({:key, definition_key}, request)
   end
 
+  def suspend_or_activate_instance(definition_key, business_key, :suspend) do
+    Cain.ProcessInstance.suspend(name(definition_key), business_key)
+  end
+
+  def suspend_or_activate_instance(definition_key, business_key, :activate) do
+    Cain.ProcessInstance.activate(name(definition_key), business_key)
+  end
+
   def get_instances(definition_key) do
     get_process_instance_business_keys(name(definition_key))
     |> Enum.map(&Cain.ProcessInstance.find(name(definition_key), &1))
@@ -293,6 +307,21 @@ defmodule Cain.BusinessProcess do
 
   def add_instance_variable(definition_key, business_key, variables) do
     Cain.ProcessInstance.add_variables(name(definition_key), business_key, variables)
+  end
+
+  def delete_instance(definition_key, business_key, opts) do
+    Cain.ProcessInstance.delete(name(definition_key), business_key, opts)
+    |> case do
+      :ok ->
+        pid =
+          Cain.ProcessInstance.Registry.registered()
+          |> Map.get({name(definition_key), business_key})
+
+        DynamicSupervisor.terminate_child(name(definition_key), pid)
+
+      error ->
+        error
+    end
   end
 
   def get_user_tasks(definition_key, business_key, user_task_names) do
@@ -309,8 +338,15 @@ defmodule Cain.BusinessProcess do
   end
 
   ### DynamicSupervisor Impl ###
-
   def start_instance(definition_key, business_key, variables, opts) do
+    if not registered_business_key?(definition_key, business_key) do
+      start_instance(definition_key, business_key, variables, opts, true)
+    else
+      {BusinessKeyError, :duplicate_entry}
+    end
+  end
+
+  defp start_instance(definition_key, business_key, variables, opts, true) do
     with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
     strategy = Keyword.get(opts, :strategy, {:key, definition_key})
 
@@ -350,6 +386,11 @@ defmodule Cain.BusinessProcess do
     DynamicSupervisor.init(strategy: :one_for_one)
   end
 
+  def registered_business_key?(definition_key, business_key) do
+    Cain.ProcessInstance.Registry.business_keys(name(definition_key))
+    |> Enum.member?(business_key)
+  end
+
   def create_instructions(nil) do
     nil
   end
@@ -369,6 +410,7 @@ defmodule Cain.BusinessProcess do
   end
 
   defp activity_type(:start_before_activity), do: "startBeforeActivity"
+
   defp activity_type(:start_after_activity), do: "startAfterActivity"
 
   defp name(definition_key), do: Module.concat(__MODULE__, definition_key)

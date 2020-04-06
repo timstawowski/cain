@@ -78,6 +78,18 @@ defmodule Cain.ProcessInstance do
     )
   end
 
+  def activate(business_process_mod, business_key) do
+    GenServer.call(via(business_process_mod, business_key), :activate)
+  end
+
+  def suspend(business_process_mod, business_key) do
+    GenServer.call(via(business_process_mod, business_key), :suspend)
+  end
+
+  def delete(business_process_mod, business_key, opts) do
+    GenServer.call(via(business_process_mod, business_key), {:delete, opts})
+  end
+
   # SERVER
 
   @impl true
@@ -92,7 +104,6 @@ defmodule Cain.ProcessInstance do
       |> Cain.Response.Helper.variables_in_return(true)
 
     process_instance = cast(process_instance_params, variables)
-
     {:noreply, process_instance, {:continue, :init_engine_state}}
   end
 
@@ -140,6 +151,37 @@ defmodule Cain.ProcessInstance do
     {:noreply, state}
   end
 
+  def handle_call(:activate, _from, %{suspended?: false} = process_instance) do
+    {:reply, {:error, :already_active}, process_instance}
+  end
+
+  def handle_call(
+        :activate,
+        _from,
+        %{__engine_state__: %State{__process_instance_id__: id}} = process_instance
+      ) do
+    reply = Cain.Endpoint.ProcessInstance.suspend(id, false)
+    {:reply, reply, %{process_instance | suspended?: false}}
+  end
+
+  def handle_call(:suspend, _from, %{suspended?: true} = process_instance) do
+    {:reply, {:error, :already_suspend}, process_instance}
+  end
+
+  def handle_call(
+        :suspend,
+        _from,
+        %{__engine_state__: %State{__process_instance_id__: id}} = process_instance
+      ) do
+    reply = Cain.Endpoint.ProcessInstance.suspend(id, true)
+
+    {:reply, reply, %{process_instance | suspended?: true}}
+  end
+
+  def handle_call(:find, _from, process_instances) do
+    {:reply, process_instances, process_instances}
+  end
+
   @impl true
   def handle_call(
         {:complete_user_task, task_name, variables},
@@ -161,10 +203,6 @@ defmodule Cain.ProcessInstance do
     {:reply, reply, state}
   end
 
-  def handle_call(:find, _from, process_instances) do
-    {:reply, process_instances, process_instances}
-  end
-
   def handle_call(
         {:get_activity, criteria, filter, {restrict_field, filter_values}},
         _from,
@@ -181,6 +219,17 @@ defmodule Cain.ProcessInstance do
       end
       |> Enum.map(&Cain.ActivityInstance.cast/1)
 
+    {:reply, reply, process_instance}
+  end
+
+  def handle_call(
+        {:delete, _opts},
+        _from,
+        %{
+          __engine_state__: %{__process_instance_id__: process_instance_id}
+        } = process_instance
+      ) do
+    reply = Cain.Endpoint.ProcessInstance.delete(process_instance_id)
     {:reply, reply, process_instance}
   end
 
