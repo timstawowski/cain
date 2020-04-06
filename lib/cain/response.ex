@@ -8,9 +8,18 @@ defmodule Cain.Response do
 
     def variables_in_return(response, true) when is_map(response) do
       Cain.Variable.parse(response)
+      |> Enum.reduce(%{}, fn {key, value}, acc ->
+        try do
+          Map.put(acc, String.to_existing_atom(key), value)
+        rescue
+          ArgumentError -> Map.put(acc, String.to_atom(key), value)
+        end
+      end)
     end
 
     def variables_in_return(response, false), do: response
+    
+    def variables_in_return(error_response, _), do: error_response
 
     @spec pre_cast(Cain.Response.t()) :: list() | :error
     def pre_cast(params) when is_map(params) do

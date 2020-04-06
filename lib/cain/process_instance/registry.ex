@@ -7,8 +7,22 @@ defmodule Cain.ProcessInstance.Registry do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
-  def registered do
-    GenServer.call(__MODULE__, {:registered})
+  def business_keys(business_process_module \\ nil) do
+    __MODULE__
+    |> GenServer.call(:registered)
+    |> business_key(business_process_module)
+  end
+
+  defp business_key(registry, business_process_module) do
+    registry
+    |> Map.keys()
+    |> Enum.reduce([], fn {business_process_name, business_key}, acc ->
+      if is_nil(business_process_module) || business_process_name == business_process_module do
+        [business_key | acc]
+      else
+        acc
+      end
+    end)
   end
 
   def whereis_name(business_key) do
@@ -40,7 +54,7 @@ defmodule Cain.ProcessInstance.Registry do
     {:ok, Map.new()}
   end
 
-  def handle_call({:registered}, _from, state) do
+  def handle_call(:registered, _from, state) do
     {:reply, state, state}
   end
 
