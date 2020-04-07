@@ -78,6 +78,20 @@ defmodule Cain.ProcessInstance do
     )
   end
 
+  def claim_user_task(business_process_mod, business_key, task_name, assignee) do
+    GenServer.call(
+      via(business_process_mod, business_key),
+      {:process_user_task, :claim, task_name, [assignee]}
+    )
+  end
+
+  def unclaim_user_task(business_process_mod, business_key, task_name) do
+    GenServer.call(
+      via(business_process_mod, business_key),
+      {:process_user_task, :unclaim, task_name, []}
+    )
+  end
+
   def activate(business_process_mod, business_key) do
     GenServer.call(via(business_process_mod, business_key), :activate)
   end
@@ -149,6 +163,22 @@ defmodule Cain.ProcessInstance do
       end
 
     {:noreply, state}
+  end
+
+  def handle_call(
+        {:process_user_task, func, task_name, args},
+        _from,
+        %{__engine_state__: state} = process_instance
+      ) do
+    user_task =
+      Cain.ActivityInstance.filter(state.__snapshot__, "activityType", "userTask")
+      |> Cain.ActivityInstance.filter("activityName", task_name)
+      |> List.first()
+      |> Cain.ActivityInstance.cast()
+
+    reply = apply(Cain.ActivityInstance.UserTask, func, [user_task] ++ args)
+
+    {:reply, reply, process_instance}
   end
 
   def handle_call(:activate, _from, %{suspended?: false} = process_instance) do

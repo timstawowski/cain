@@ -138,11 +138,19 @@ defmodule Cain.BusinessProcess do
 
       # -- TASK --
 
-      @spec get_instance_user_tasks(BusinessKey.t(), list(String.t()) | String.t()) ::
-              list(%Cain.UserTask{}) | list() | {:error, :unknown_business_key}
-      def get_instance_user_tasks(business_key, task_names)
+      @spec get_instance_user_task(BusinessKey.t(), list(String.t()) | String.t()) ::
+              list(%Cain.UserTask{})
+              | list()
+              | {:error, :multiple_task_with_same_name}
+              | {:error, :unknown_business_key}
+      def get_instance_user_task(business_key, task_names)
           when is_business_key(business_key) and is_binary(task_names) do
         get_instance_user_tasks(business_key, [task_names])
+        |> case do
+          [user_task] -> user_task
+          [_ | _] -> {:error, :multiple_task_with_same_name}
+          [] -> []
+        end
       end
 
       def get_instance_user_tasks(business_key, task_names)
@@ -174,6 +182,19 @@ defmodule Cain.BusinessProcess do
             )
           end
         )
+      end
+
+      @spec claim_user_task(BusinessKey.t(), String.t(), String.t()) ::
+              :ok | {:already_claimed_by, String.t()}
+      def claim_user_task(business_key, task_name, assginee) when is_business_key(business_key) do
+        Cain.BusinessProcess.claim_user_task(@definition_key, business_key, task_name, assginee)
+      end
+
+      @spec unclaim_user_task(BusinessKey.t(), String.t()) ::
+              :ok | {:already_claimed_by, String.t()}
+      def unclaim_user_task(business_key, task_name)
+          when is_business_key(business_key) do
+        Cain.BusinessProcess.unclaim_user_task(@definition_key, business_key, task_name)
       end
 
       # def get_user_tasks(process_instance_id) do
@@ -362,6 +383,23 @@ defmodule Cain.BusinessProcess do
       business_key,
       task_name,
       variables
+    )
+  end
+
+  def claim_user_task(defintion_key, business_key, user_task_name, assignee) do
+    Cain.ProcessInstance.claim_user_task(
+      name(defintion_key),
+      business_key,
+      user_task_name,
+      assignee
+    )
+  end
+
+  def unclaim_user_task(defintion_key, business_key, user_task_name) do
+    Cain.ProcessInstance.unclaim_user_task(
+      name(defintion_key),
+      business_key,
+      user_task_name
     )
   end
 

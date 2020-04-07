@@ -24,7 +24,7 @@ defmodule Cain.UserTask do
     :identity_links
   ]
 
-  def purify(%{} = user_task, opts) do
+  def purify(%{} = user_task, opts \\ []) do
     extend = Keyword.get(opts, :extend, false)
 
     struct(__MODULE__, Cain.Response.Helper.pre_cast(user_task))

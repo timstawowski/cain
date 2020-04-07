@@ -62,7 +62,7 @@ defmodule Cain.ActivityInstance do
     %{sub_process_activity | "childActivityInstances" => nested}
   end
 
-  def cast(term, _opts), do: term
+  def cast(term), do: term
 
   def filter(child_activity_instances, attr \\ "activityId", filter \\ nil)
 
