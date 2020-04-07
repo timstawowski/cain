@@ -1,6 +1,11 @@
 defmodule Cain.BusinessProcess do
   use DynamicSupervisor
 
+  alias Cain.{
+    BusinessKey,
+    Variable
+  }
+
   defstruct [
     :key,
     :name,
@@ -8,11 +13,6 @@ defmodule Cain.BusinessProcess do
     process_instances: [],
     process_instances_count: 0
   ]
-
-  defmodule BusinessKeyError do
-    @moduledoc false
-    defexception [:message]
-  end
 
   defmacro __using__(opts) do
     definition_key = Keyword.get(opts, :definition_key)
@@ -26,6 +26,9 @@ defmodule Cain.BusinessProcess do
     end
 
     quote do
+      import BusinessKey, only: [is_business_key: 1]
+      # import Cain.Variable
+
       def __definiton_key__ do
         @definition_key
       end
@@ -34,29 +37,33 @@ defmodule Cain.BusinessProcess do
         if Cain.BusinessProcess.registered_business_key?(@definition_key, business_key) do
           func.()
         else
-          {BusinessKeyError, :unknown}
+          {:error, :unknown_business_key}
         end
       end
 
       ## BUSINESS PROCESS OPERATIONS ##
 
       # start strategies?
+      @spec start() :: :ok
       def start do
         Cain.BusinessProcess.start(@definition_key)
       end
 
+      @spec info() :: %Cain.BusinessProcess{}
       def info do
         Cain.BusinessProcess.info(@definition_key)
       end
 
       def suspend(opts \\ [])
 
+      @spec suspend(list()) :: :ok | {:error, :already_supsend}
       def suspend(opts) when is_list(opts) do
         Cain.BusinessProcess.suspend_or_activate(@definition_key, :suspend, opts)
       end
 
       def activate(opts \\ [])
 
+      @spec activate(list()) :: :ok | {:error, :already_activate}
       def activate(opts) when is_list(opts) do
         Cain.BusinessProcess.suspend_or_activate(@definition_key, :activate, opts)
       end
@@ -69,12 +76,15 @@ defmodule Cain.BusinessProcess do
             opts \\ []
           )
 
+      @spec start_instance(BusinessKey.t(), Variable.t(), list()) ::
+              :ok | {:error, :duplicate_business_key}
       def start_instance(business_key, params, opts)
-          when is_binary(business_key) and is_map(params) and is_list(opts) do
+          when is_business_key(business_key) and is_map(params) and is_list(opts) do
         Cain.BusinessProcess.start_instance(@definition_key, business_key, params, opts)
       end
 
-      def activate_instance(business_key) when is_binary(business_key) do
+      @spec activate_instance(BusinessKey.t()) :: :ok | {:error, :already_active}
+      def activate_instance(business_key) when is_business_key(business_key) do
         Cain.BusinessProcess.suspend_or_activate_instance(
           @definition_key,
           business_key,
@@ -82,23 +92,32 @@ defmodule Cain.BusinessProcess do
         )
       end
 
-      def suspend_instance(business_key) when is_binary(business_key) do
+      @spec suspend_instance(BusinessKey.t()) :: :ok | {:error, :already_suspend}
+      def suspend_instance(business_key) when is_business_key(business_key) do
         Cain.BusinessProcess.suspend_or_activate_instance(@definition_key, business_key, :suspend)
       end
 
+      @spec get_instances() :: list(%Cain.ProcessInstance{}) | list()
       def get_instances do
         Cain.BusinessProcess.get_instances(@definition_key)
       end
 
-      def get_instance(business_key) when is_binary(business_key) do
+      @spec get_instance(BusinessKey.t()) ::
+              %Cain.ProcessInstance{} | nil | {:error, :unknown_business_key}
+      def get_instance(business_key) when is_business_key(business_key) do
         __validate_business_key__(
           business_key,
           fn -> Cain.BusinessProcess.get_instance(@definition_key, business_key) end
         )
       end
 
+      def get_instance(business_key),
+        do: raise(Cain.BusinessKeyError, "Invalid type for business key")
+
+      @spec add_instance_variable(Businesskey.t(), Variable.t()) ::
+              :ok | {:error, :unknown_business_key}
       def add_instance_variable(business_key, variables)
-          when is_binary(business_key) and is_map(variables) do
+          when is_business_key(business_key) and is_map(variables) do
         __validate_business_key__(
           business_key,
           fn ->
@@ -109,8 +128,9 @@ defmodule Cain.BusinessProcess do
 
       def delete_instance(business_key, opts \\ [])
 
+      @spec delete_instance(BusinessKey.t(), list()) :: :ok | {:error, :unknown_business_key}
       def delete_instance(business_key, opts)
-          when is_binary(business_key) and is_list(opts) do
+          when is_business_key(business_key) and is_list(opts) do
         Cain.BusinessProcess.delete_instance(@definition_key, business_key, opts)
       end
 
@@ -118,15 +138,15 @@ defmodule Cain.BusinessProcess do
 
       # -- TASK --
 
-      def get_instance_user_tasks(business_key, task_names \\ [])
-
+      @spec get_instance_user_tasks(BusinessKey.t(), list(String.t()) | String.t()) ::
+              list(%Cain.UserTask{}) | list() | {:error, :unknown_business_key}
       def get_instance_user_tasks(business_key, task_names)
-          when is_binary(business_key) and is_binary(task_names) do
+          when is_business_key(business_key) and is_binary(task_names) do
         get_instance_user_tasks(business_key, [task_names])
       end
 
       def get_instance_user_tasks(business_key, task_names)
-          when is_binary(business_key) and is_list(task_names) do
+          when is_business_key(business_key) and is_list(task_names) do
         __validate_business_key__(
           business_key,
           fn ->
@@ -139,8 +159,10 @@ defmodule Cain.BusinessProcess do
         )
       end
 
+      @spec complete_user_task(BusinessKey.t(), String.t(), Variable.t()) ::
+              :ok | {:error, :unknown_business_key}
       def complete_user_task(business_key, task_name, variables \\ %{})
-          when is_binary(business_key) and is_binary(task_name) and is_map(variables) do
+          when is_business_key(business_key) and is_binary(task_name) and is_map(variables) do
         __validate_business_key__(
           business_key,
           fn ->
@@ -348,7 +370,7 @@ defmodule Cain.BusinessProcess do
     if not registered_business_key?(definition_key, business_key) do
       start_instance(definition_key, business_key, variables, opts, true)
     else
-      {BusinessKeyError, :duplicate_entry}
+      {:error, :duplicate_business_key}
     end
   end
 

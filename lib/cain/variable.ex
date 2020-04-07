@@ -6,7 +6,7 @@ defmodule Cain.Variable do
   #   :xml
   # ]
 
-  @type variable :: %{optional(atom()) => any()} | %{}
+  @type t :: %{optional(atom()) => any()} | %{}
 
   # @byte_precision -128..127
   @short_precision -32_768..32_767
