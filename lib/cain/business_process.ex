@@ -118,18 +118,24 @@ defmodule Cain.BusinessProcess do
 
       # -- TASK --
 
-      def get_user_tasks(business_key, task_names \\ [])
+      def get_instance_user_tasks(business_key, task_names \\ [])
 
-      def get_user_tasks(business_key, task_names)
+      def get_instance_user_tasks(business_key, task_names)
           when is_binary(business_key) and is_binary(task_names) do
-        get_user_tasks(business_key, [task_names])
+        get_instance_user_tasks(business_key, [task_names])
       end
 
-      def get_user_tasks(business_key, task_names)
+      def get_instance_user_tasks(business_key, task_names)
           when is_binary(business_key) and is_list(task_names) do
         __validate_business_key__(
           business_key,
-          fn -> Cain.BusinessProcess.get_user_tasks(@definition_key, business_key, task_names) end
+          fn ->
+            Cain.BusinessProcess.get_instance_user_tasks(
+              @definition_key,
+              business_key,
+              task_names
+            )
+          end
         )
       end
 
@@ -324,7 +330,7 @@ defmodule Cain.BusinessProcess do
     end
   end
 
-  def get_user_tasks(definition_key, business_key, user_task_names) do
+  def get_instance_user_tasks(definition_key, business_key, user_task_names) do
     Cain.ProcessInstance.get_user_tasks(name(definition_key), business_key, user_task_names)
   end
 

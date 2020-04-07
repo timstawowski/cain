@@ -8,7 +8,7 @@ defimpl Cain.Activity, for: List do
     |> List.flatten()
   end
 
-  def filter([%{"childActivityInstances" => []} = head | tail], attr, filter, acc) do
+  defp filter([%{"childActivityInstances" => []} = head | tail], attr, filter, acc) do
     if is_nil(filter) || Map.get(head, attr) == filter do
       filter(tail, attr, filter, acc ++ [head])
     else
@@ -16,20 +16,17 @@ defimpl Cain.Activity, for: List do
     end
   end
 
-  def filter(
-        [%{"childActivityInstances" => child_activity_instances} = head | tail],
-        attr,
-        filter,
-        acc
-      ) do
-    nested = filter(child_activity_instances, attr, filter, acc) |> List.flatten()
+  defp filter(
+         [%{"childActivityInstances" => child_activity_instances} = head | tail],
+         attr,
+         filter,
+         acc
+       ) do
+    first = Map.put(head, "childActivityInstances", [])
 
-    if is_nil(filter) || Map.get(head, attr) == filter do
-      filter(tail, attr, filter, acc ++ [head] ++ [nested])
-    else
-      filter(tail, attr, filter, acc ++ [nested])
-    end
+    [filter([first | tail], attr, filter, acc)] ++
+      [filter(child_activity_instances, attr, filter, [])]
   end
 
-  def filter([], _attr, _filter, acc), do: acc
+  defp filter([], _attr, _filter, acc), do: acc
 end
