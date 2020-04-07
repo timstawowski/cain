@@ -20,4 +20,8 @@ defmodule Cain.Endpoint.ProcessInstance do
   def delete(id, query \\ %{}, opts \\ []) do
     delete("/process-instance/#{id}", query, %{}, opts)
   end
+
+  def modify(id, body) do
+    post("/process-instance/#{id}/modification", %{}, body)
+  end
 end

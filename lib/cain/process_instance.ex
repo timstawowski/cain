@@ -2,22 +2,46 @@ defmodule Cain.ProcessInstance do
   use GenServer
 
   defstruct [
+    :__engine_state__,
     :business_key,
     :links,
     :suspended?,
     :variables,
     :tokens,
-    :user_tasks,
-    :sub_processes,
-    :__engine_state__
+    :history,
+    user_task: [],
+    service_task: [],
+    receive_task: [],
+    sub_process: []
   ]
 
+  @activity_types [
+    :user_task,
+    :service_task,
+    :receive_task,
+    :sub_process
+  ]
+
+  defimpl Inspect, for: __MODULE__ do
+    def inspect(instance, opts) do
+      pruned = Map.drop(instance, [:__struct__, :__engine_state__])
+      Inspect.Map.inspect(pruned, Code.Identifier.inspect_as_atom(__MODULE__), opts)
+    end
+  end
+
   defmodule State do
-    defstruct [:__snapshot__, :__process_instance_id__, __timestamp__: :os.system_time()]
+    defstruct [
+      :__snapshot__,
+      :__process_definition_id__,
+      :__process_instance_id__,
+      __timestamp__: :os.system_time()
+    ]
 
     defimpl Inspect, for: __MODULE__ do
-      def inspect(%{__timestamp__: timestamp}, _opts) do
-        "#EngineState<latest:#{timestamp}>"
+      import Inspect.Algebra
+
+      def inspect(state, opts) do
+        concat(["#EngineState<latest:", to_doc(state.__timestamp__, opts), ">"])
       end
     end
   end
@@ -37,6 +61,7 @@ defmodule Cain.ProcessInstance do
       |> Keyword.put(
         :__engine_state__,
         struct(State,
+          __process_definition_id__: process_instance["definitionId"],
           __process_instance_id__: process_instance["id"]
         )
       )
@@ -74,7 +99,7 @@ defmodule Cain.ProcessInstance do
   def complete_user_task(business_process_mod, business_key, task_name, variables) do
     GenServer.call(
       via(business_process_mod, business_key),
-      {:complete_user_task, task_name, variables}
+      {:process_user_task, :complete, task_name, [variables]}
     )
   end
 
@@ -165,6 +190,7 @@ defmodule Cain.ProcessInstance do
     {:noreply, state}
   end
 
+  @impl true
   def handle_call(
         {:process_user_task, func, task_name, args},
         _from,
@@ -176,9 +202,23 @@ defmodule Cain.ProcessInstance do
       |> List.first()
       |> Cain.ActivityInstance.cast()
 
-    reply = apply(Cain.ActivityInstance.UserTask, func, [user_task] ++ args)
+    {reply, state} =
+      case apply(Cain.ActivityInstance.UserTask, func, [user_task] ++ args) do
+        :ok ->
+          update_engine_state()
 
-    {:reply, reply, process_instance}
+          {:ok, process_instance}
+
+        variables when is_map(variables) ->
+          update_engine_state()
+
+          {:ok, %{process_instance | variables: variables}}
+
+        error ->
+          {error, process_instance}
+      end
+
+    {:reply, reply, state}
   end
 
   def handle_call(:activate, _from, %{suspended?: false} = process_instance) do
@@ -210,27 +250,6 @@ defmodule Cain.ProcessInstance do
 
   def handle_call(:find, _from, process_instances) do
     {:reply, process_instances, process_instances}
-  end
-
-  @impl true
-  def handle_call(
-        {:complete_user_task, task_name, variables},
-        _from,
-        process_instance
-      ) do
-    {reply, state} =
-      find_in_snapshot("userTask", task_name, process_instance)
-      |> Cain.ActivityInstance.UserTask.complete(variables)
-      |> case do
-        {:error, _error} = error ->
-          {error, process_instance}
-
-        casted_variables ->
-          {:ok, %{process_instance | variables: casted_variables}}
-      end
-
-    update_engine_state()
-    {:reply, reply, state}
   end
 
   def handle_call(
@@ -265,54 +284,54 @@ defmodule Cain.ProcessInstance do
 
   @impl true
   def handle_info(:update_engine_state, %{__engine_state__: engine_state} = process_instance) do
-    child_activities =
-      Cain.Endpoint.ProcessInstance.get_activity_instance(engine_state.__process_instance_id__)
-      |> Map.get("childActivityInstances")
+    case Cain.Endpoint.ProcessInstance.get_activity_instance(engine_state.__process_instance_id__) do
+      {:error, _instance_ended} ->
+        module = engine_state.__process_definition_id__ |> String.split(":") |> List.first()
+        DynamicSupervisor.terminate_child(Module.concat(Cain.BusinessProcess, module), self())
+        {:stop, :ended, process_instance}
 
-    engine_state = %{
-      engine_state
-      | __snapshot__: child_activities,
-        __timestamp__: :os.system_time(:millisecond)
-    }
+      parent_activity ->
+        process_instance =
+          Map.from_struct(process_instance) |> Map.drop(@activity_types) |> Map.to_list()
 
-    tokens = Cain.ActivityInstance.filter(child_activities) |> Enum.count()
+        child_activities = Map.get(parent_activity, "childActivityInstances")
 
-    user_tasks =
-      Cain.ActivityInstance.filter(child_activities, "activityType", "userTask")
-      |> Enum.map(&Map.get(&1, "name"))
+        history =
+          Cain.Endpoint.History.ActivityInstance.get_list(%{
+            "processInstanceId" => engine_state.__process_instance_id__
+          })
+          |> Cain.ActivityInstance.History.cast()
 
-    sub_processes =
-      Cain.ActivityInstance.filter(child_activities, "activityType", "subProcess")
-      |> Enum.map(&Map.get(&1, "name"))
+        activity_types =
+          Cain.ActivityInstance.filter(child_activities)
+          |> Enum.group_by(&Map.get(&1, "activityType"))
+          |> Enum.reduce([], fn {activity_type, activities}, acc ->
+            key =
+              activity_type
+              |> Macro.underscore()
+              |> String.to_existing_atom()
 
-    {:noreply,
-     %{
-       process_instance
-       | __engine_state__: engine_state,
-         tokens: tokens,
-         user_tasks: user_tasks,
-         sub_processes: sub_processes
-     }}
+            value = Enum.map(activities, &Map.get(&1, "activityName"))
+            [{key, value} | acc]
+          end)
+
+        new_state = struct(__MODULE__, Keyword.merge(process_instance, activity_types))
+
+        {:noreply,
+         %{
+           new_state
+           | __engine_state__: %{
+               engine_state
+               | __snapshot__: child_activities,
+                 __timestamp__: :os.system_time(:millisecond)
+             },
+             history: history,
+             tokens: Enum.count(Cain.ActivityInstance.filter(child_activities))
+         }}
+    end
   end
 
   defp update_engine_state do
     Process.send(self(), :update_engine_state, [])
-  end
-
-  defp find_in_snapshot(
-         activity_type,
-         activity_name,
-         %{__engine_state__: %{__snapshot__: snapshot}}
-       ) do
-    Enum.find(snapshot, fn activity ->
-      activity["activityName"] == activity_name and activity["activityType"] == activity_type
-    end)
-    |> case do
-      nil ->
-        {:error, :acitivity_not_found}
-
-      activity ->
-        Cain.ActivityInstance.cast(activity)
-    end
   end
 end

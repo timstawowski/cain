@@ -137,20 +137,13 @@ defmodule Cain.BusinessProcess do
       ## ACTIVITY OPERATIONS ##
 
       # -- TASK --
+      def get_instance_user_tasks(business_key, task_names \\ [])
 
-      @spec get_instance_user_task(BusinessKey.t(), list(String.t()) | String.t()) ::
-              list(%Cain.UserTask{})
-              | list()
-              | {:error, :multiple_task_with_same_name}
-              | {:error, :unknown_business_key}
-      def get_instance_user_task(business_key, task_names)
+      @spec get_instance_user_tasks(BusinessKey.t(), list(String.t()) | String.t()) ::
+              list(%Cain.UserTask{}) | list() | {:error, :unknown_business_key}
+      def get_instance_user_tasks(business_key, task_names)
           when is_business_key(business_key) and is_binary(task_names) do
         get_instance_user_tasks(business_key, [task_names])
-        |> case do
-          [user_task] -> user_task
-          [_ | _] -> {:error, :multiple_task_with_same_name}
-          [] -> []
-        end
       end
 
       def get_instance_user_tasks(business_key, task_names)
@@ -279,6 +272,28 @@ defmodule Cain.BusinessProcess do
       # end
     end
   end
+
+  ## TODO implement
+  def modify_instance(
+        business_key,
+        instructions,
+        skip_custom_listener? \\ true,
+        skip_io_mapping? \\ true,
+        annotation \\ nil
+      )
+
+  # @spec modify_instance(BusinessKey.t(), list(), boolean(), boolean(), String.()) :: :ok
+  def modify_instance(
+        business_key,
+        instructions,
+        skip_custom_listener?,
+        skip_io_mapping?,
+        annotation
+      ) do
+    modification_instructions = create_instructions(instructions)
+  end
+
+  ###
 
   def cast(info) do
     struct(__MODULE__, info)
@@ -418,7 +433,7 @@ defmodule Cain.BusinessProcess do
 
     start_instructions =
       Keyword.get(opts, :start_instructions)
-      |> __MODULE__.create_instructions()
+      |> Cain.BusinessProcess.create_instructions()
 
     variables = Cain.Variable.cast(variables)
 
@@ -467,7 +482,7 @@ defmodule Cain.BusinessProcess do
   end
 
   def create_instructions({start_at_activity, activity_id})
-      when start_at_activity in [:start_before_activity, :start_after_activity] do
+      when start_at_activity in [:start_before, :start_after] do
     %{"type" => activity_type(start_at_activity), "activityId" => activity_id}
   end
 
@@ -476,9 +491,9 @@ defmodule Cain.BusinessProcess do
     |> Enum.map(&create_instructions(&1))
   end
 
-  defp activity_type(:start_before_activity), do: "startBeforeActivity"
+  defp activity_type(:start_before), do: "startBeforeActivity"
 
-  defp activity_type(:start_after_activity), do: "startAfterActivity"
+  defp activity_type(:start_after), do: "startAfterActivity"
 
   defp name(definition_key), do: Module.concat(__MODULE__, definition_key)
 

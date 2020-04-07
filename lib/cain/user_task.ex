@@ -7,6 +7,7 @@ defmodule Cain.UserTask do
       {:form_variables, &Cain.Endpoint.Task.get_task_form_variables/2}
     ]
 
+  # TODO: Move id back to activity instance
   defstruct [
     :id,
     :assignee,

@@ -1,6 +1,32 @@
 defmodule Cain.ActivityInstance do
   @callback purify(map(), list()) :: struct()
 
+  defmodule History do
+    defstruct [
+      :__activities__,
+      :__types__,
+      :__count__
+    ]
+
+    defimpl Inspect, for: __MODULE__ do
+      def inspect(history, _opts) do
+        "#History<Activities[#{history.__count__}]>"
+      end
+    end
+
+    def cast(history) do
+      count = Enum.count(history)
+      history_activities = Enum.group_by(history, &Map.get(&1, "activityType"))
+      types = history_activities |> Map.keys()
+
+      struct(__MODULE__,
+        __count__: count,
+        __types__: types,
+        __activities__: history_activities
+      )
+    end
+  end
+
   defmacro __using__(opts) do
     extensional_fields = Keyword.get(opts, :extensional_fields, [])
     Module.put_attribute(__CALLER__.module, :extensional_fields, extensional_fields)

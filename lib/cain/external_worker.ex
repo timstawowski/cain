@@ -87,7 +87,7 @@ defmodule Cain.ExternalWorker do
   # decompose
   def handle_info({reference, function_result}, state) when is_reference(reference) do
     case :ets.take(state.module, reference) do
-      [{_reference, task_id}] ->
+      [{_reference, task_id, definition_key, business_key}] ->
         Logger.info("External function result is: #{inspect(function_result, pretty: true)}")
 
         case function_result do
@@ -180,7 +180,11 @@ defmodule Cain.ExternalWorker do
     case :ets.match(state.module, {:"$1", task_id}) do
       [] ->
         %Task{ref: reference} = Task.async(module, func, [payload] ++ args)
-        :ets.insert(state.module, {reference, task_id})
+
+        :ets.insert(
+          state.module,
+          {reference, task_id, payload["processDefinitionKey"], payload["businessKey"]}
+        )
 
       _already_started ->
         :already_started
