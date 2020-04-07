@@ -1,5 +1,5 @@
 defmodule Cain.ActivityInstance.SubProcess do
-  
+
   @behaviour Cain.ActivityInstance
 
   defstruct [
@@ -14,6 +14,6 @@ defmodule Cain.ActivityInstance.SubProcess do
         Cain.ActivityInstance.cast(child_activity)
       end)
 
-    struct(__MODULE__, name: name, sub_activities: sub_activities)
+    struct(__MODULE__, [name: name, sub_activities: sub_activities])
   end
 end

@@ -1,12 +1,6 @@
 defmodule Cain.ActivityInstance.UserTask do
   alias Cain.{Endpoint.Task, Variable}
 
-  # use Cain.ActivityInstance,
-  #   extentional_fields: [
-  #     {:identity_links, &Cain.Endpoint.Task.IdentityLinks.get_list/1},
-  #     {:form_variables, &Cain.Endpoint.Task.get_task_form_variables/2}
-  #   ]
-
   @doc """
   Changes the assignee of a task to a specific user.
   """

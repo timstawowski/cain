@@ -68,7 +68,7 @@ defmodule Cain.ProcessInstance do
       via(business_process_mod, business_key),
       {:get_activity, "activityType", "userTask", {"activityName", user_task_names}}
     )
-    |> Enum.map(&Cain.UserTask.purify/1)
+    |> Enum.map(&Cain.UserTask.purify(&1, extend: true))
   end
 
   def complete_user_task(business_process_mod, business_key, task_name, variables) do
@@ -212,10 +212,10 @@ defmodule Cain.ProcessInstance do
       ) do
     reply =
       if !Enum.empty?(filter_values) do
-        Cain.Activity.filter(snapshot, criteria, filter)
+        Cain.ActivityInstance.filter(snapshot, criteria, filter)
         |> Enum.filter(&(&1[restrict_field] in filter_values))
       else
-        Cain.Activity.filter(snapshot, criteria, filter)
+        Cain.ActivityInstance.filter(snapshot, criteria, filter)
       end
       |> Enum.map(&Cain.ActivityInstance.cast/1)
 
@@ -245,14 +245,14 @@ defmodule Cain.ProcessInstance do
         __timestamp__: :os.system_time(:millisecond)
     }
 
-    tokens = Cain.Activity.filter(child_activities) |> Enum.count()
+    tokens = Cain.ActivityInstance.filter(child_activities) |> Enum.count()
 
     user_tasks =
-      Cain.Activity.filter(child_activities, "activityType", "userTask")
+      Cain.ActivityInstance.filter(child_activities, "activityType", "userTask")
       |> Enum.map(&Map.get(&1, "name"))
 
     sub_processes =
-      Cain.Activity.filter(child_activities, "activityType", "subProcess")
+      Cain.ActivityInstance.filter(child_activities, "activityType", "subProcess")
       |> Enum.map(&Map.get(&1, "name"))
 
     {:noreply,

@@ -373,9 +373,10 @@ defmodule Cain.BusinessProcess do
       Cain.Endpoint.ProcessDefinition.start_instance(strategy, request)
       |> Cain.Response.Helper.variables_in_return(with_variables_in_return?)
 
-    spec = {Cain.ProcessInstance, [name(definition_key), process_instance]}
-
-    case DynamicSupervisor.start_child(name(definition_key), spec) do
+    case DynamicSupervisor.start_child(
+           name(definition_key),
+           {Cain.ProcessInstance, [name(definition_key), process_instance]}
+         ) do
       {:ok, _pid} -> :ok
       error -> error
     end
@@ -422,7 +423,8 @@ defmodule Cain.BusinessProcess do
   defp name(definition_key), do: Module.concat(__MODULE__, definition_key)
 
   defp count_process_instances(business_process) when is_atom(business_process) do
-    Elixir.DynamicSupervisor.count_children(business_process)
+    business_process
+    |> Elixir.DynamicSupervisor.count_children()
     |> Map.get(:workers)
   end
 
