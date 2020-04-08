@@ -1,2 +1,0 @@
-defmodule DemoProcessInstance do
-end

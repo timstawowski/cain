@@ -22,13 +22,19 @@ defmodule Cain.UserTask do
     :owner,
     :priority,
     :suspended?,
-    :identity_links
+    :identity_links,
+    boundary_events: []
   ]
 
-  def purify(%{} = user_task, opts \\ []) do
+  def purify({%{} = user_task, boundary_events}, opts \\ []) do
     extend = Keyword.get(opts, :extend, false)
+    params = Cain.Response.Helper.pre_cast(user_task)
+    boundaries = Enum.map(boundary_events, &Cain.Event.cast/1)
 
-    struct(__MODULE__, Cain.Response.Helper.pre_cast(user_task))
+    struct(
+      __MODULE__,
+      params ++ [boundary_events: boundaries]
+    )
     |> extend(extend)
   end
 end

@@ -129,6 +129,9 @@ defmodule Cain.ExternalWorker do
               "External_Worker recievd invalid function result: #{inspect(error, pretty: true)}"
             )
         end
+
+        notify_instance(definition_key, business_key)
+
         {:noreply, state}
 
       [] ->
@@ -200,6 +203,11 @@ defmodule Cain.ExternalWorker do
       })
 
       error
+  end
+
+  defp notify_instance(definition_key, business_key) do
+    Module.concat(Cain.BusinessProcess, definition_key)
+    |> Cain.ProcessInstance.update_state(business_key)
   end
 
   defp worker_id do

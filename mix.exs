@@ -19,7 +19,7 @@ defmodule Cain.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      mod: {Cain, [auto_discover: true]},
+      mod: {Cain.Application, [auto_discover: true]},
       extra_applications: [:logger]
     ]
   end

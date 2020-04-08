@@ -16,6 +16,8 @@ defmodule Cain.BusinessProcess do
 
   defmacro __using__(opts) do
     definition_key = Keyword.get(opts, :definition_key)
+    messages = Keyword.get(opts, :messages, [])
+    instance_timeout = Keyword.get(opts, :instance_timeout, :timer.minutes(10))
 
     cond do
       is_nil(definition_key) ->
@@ -23,6 +25,7 @@ defmodule Cain.BusinessProcess do
 
       true ->
         Module.put_attribute(__CALLER__.module, :definition_key, definition_key)
+        Module.put_attribute(__CALLER__.module, :messages, messages)
     end
 
     quote do
@@ -37,12 +40,17 @@ defmodule Cain.BusinessProcess do
         if Cain.BusinessProcess.registered_business_key?(@definition_key, business_key) do
           func.()
         else
-          {:error, :unknown_business_key}
+          case init_process_instances(business_key) do
+            :ok ->
+              func.()
+
+            error ->
+              error
+          end
         end
       end
 
       ## BUSINESS PROCESS OPERATIONS ##
-
       # start strategies?
       @spec start() :: :ok
       def start do
@@ -54,33 +62,46 @@ defmodule Cain.BusinessProcess do
         Cain.BusinessProcess.info(@definition_key)
       end
 
-      def suspend(opts \\ [])
-
       @spec suspend(list()) :: :ok | {:error, :already_supsend}
-      def suspend(opts) when is_list(opts) do
+      def suspend(opts \\ []) when is_list(opts) do
         Cain.BusinessProcess.suspend_or_activate(@definition_key, :suspend, opts)
       end
 
-      def activate(opts \\ [])
-
       @spec activate(list()) :: :ok | {:error, :already_activate}
-      def activate(opts) when is_list(opts) do
+      def activate(opts \\ []) when is_list(opts) do
         Cain.BusinessProcess.suspend_or_activate(@definition_key, :activate, opts)
       end
 
       ## PROCESS INSTANCE OPERATIONS ##
 
-      def start_instance(
-            business_key,
-            params \\ %{},
-            opts \\ []
-          )
+      def init_process_instances(list_of_business_keys \\ [])
+
+      @spec init_process_instances(list(BusinessKey.t()) | BusinessKey.t()) :: :ok
+      def init_process_instances(business_key) when is_business_key(business_key) do
+        init_process_instances([business_key])
+      end
+
+      def init_process_instances(list_of_business_keys)
+          when is_list(list_of_business_keys) do
+        Cain.BusinessProcess.__init_process_instances__(
+          @definition_key,
+          @messages,
+          list_of_business_keys,
+          unquote(instance_timeout)
+        )
+      end
 
       @spec start_instance(BusinessKey.t(), Variable.t(), list()) ::
               :ok | {:error, :duplicate_business_key}
-      def start_instance(business_key, params, opts)
+      def start_instance(business_key, params \\ %{}, opts \\ [])
           when is_business_key(business_key) and is_map(params) and is_list(opts) do
-        Cain.BusinessProcess.start_instance(@definition_key, business_key, params, opts)
+        Cain.BusinessProcess.start_instance(
+          @definition_key,
+          @messages,
+          business_key,
+          params,
+          opts
+        )
       end
 
       @spec activate_instance(BusinessKey.t()) :: :ok | {:error, :already_active}
@@ -274,24 +295,24 @@ defmodule Cain.BusinessProcess do
   end
 
   ## TODO implement
-  def modify_instance(
-        business_key,
-        instructions,
-        skip_custom_listener? \\ true,
-        skip_io_mapping? \\ true,
-        annotation \\ nil
-      )
+  # def modify_instance(
+  #       business_key,
+  #       instructions,
+  #       skip_custom_listener? \\ true,
+  #       skip_io_mapping? \\ true,
+  #       annotation \\ nil
+  #     )
 
-  # @spec modify_instance(BusinessKey.t(), list(), boolean(), boolean(), String.()) :: :ok
-  def modify_instance(
-        business_key,
-        instructions,
-        skip_custom_listener?,
-        skip_io_mapping?,
-        annotation
-      ) do
-    modification_instructions = create_instructions(instructions)
-  end
+  # # @spec modify_instance(BusinessKey.t(), list(), boolean(), boolean(), String.()) :: :ok
+  # def modify_instance(
+  #       business_key,
+  #       instructions,
+  #       skip_custom_listener?,
+  #       skip_io_mapping?,
+  #       annotation
+  #     ) do
+  #   modification_instructions = create_instructions(instructions)
+  # end
 
   ###
 
@@ -301,13 +322,12 @@ defmodule Cain.BusinessProcess do
 
   # manually start up
   def start(definition_key) do
-    case Cain.Endpoint.ProcessDefinition.get({:key, definition_key}) do
-      {:error, %Cain.Endpoint.Error{message: msg}} ->
-        {:error, msg}
-
-      valid_response ->
-        Cain.BusinessProcess.DynamicSupervisor.start_business_process(valid_response)
+    case Cain.BusinessProcess.DynamicSupervisor.start_business_process(definition_key) do
+      {:ok, _pid} ->
         :ok
+
+      error ->
+        error
     end
   end
 
@@ -419,15 +439,15 @@ defmodule Cain.BusinessProcess do
   end
 
   ### DynamicSupervisor Impl ###
-  def start_instance(definition_key, business_key, variables, opts) do
+  def start_instance(definition_key, message_names, business_key, variables, opts) do
     if not registered_business_key?(definition_key, business_key) do
-      start_instance(definition_key, business_key, variables, opts, true)
+      start_instance(definition_key, message_names, business_key, variables, opts, true)
     else
       {:error, :duplicate_business_key}
     end
   end
 
-  defp start_instance(definition_key, business_key, variables, opts, true) do
+  defp start_instance(definition_key, message_names, business_key, variables, opts, true) do
     with_variables_in_return? = Keyword.get(opts, :with_variables_in_return?, true)
     strategy = Keyword.get(opts, :strategy, {:key, definition_key})
 
@@ -450,7 +470,7 @@ defmodule Cain.BusinessProcess do
 
     case DynamicSupervisor.start_child(
            name(definition_key),
-           {Cain.ProcessInstance, [name(definition_key), process_instance]}
+           {Cain.ProcessInstance, [name(definition_key), process_instance, message_names]}
          ) do
       {:ok, _pid} -> :ok
       error -> error
@@ -471,6 +491,60 @@ defmodule Cain.BusinessProcess do
   def registered_business_key?(definition_key, business_key) do
     Cain.ProcessInstance.Registry.business_keys(name(definition_key))
     |> Enum.member?(business_key)
+  end
+
+  def __init_process_instances__(definition_key, messages, business_key_list, instance_timeout) do
+    instances =
+      Enum.map(business_key_list, fn business_key ->
+        %{"processDefinitionKey" => definition_key, "businessKey" => business_key}
+        |> Cain.Endpoint.ProcessInstance.get_list()
+        |> case do
+          [%{"id" => process_instance_id}] ->
+            {:id, process_instance_id}
+
+          [] ->
+            {:unknown, business_key}
+        end
+      end)
+
+    unknown = Keyword.values(Keyword.take(instances, [:unknown]))
+
+    query_extension =
+      if Enum.empty?(business_key_list) do
+        %{}
+      else
+        %{"processInstanceIds" => Enum.join(Keyword.values(Keyword.take(instances, [:id])), ",")}
+      end
+
+    %{"processDefinitionKey" => definition_key}
+    |> Map.merge(query_extension)
+    |> Cain.Endpoint.ProcessInstance.get_list()
+    |> Enum.each(fn instance ->
+      case DynamicSupervisor.start_child(
+             name(definition_key),
+             {Cain.ProcessInstance, [name(definition_key), instance, messages, instance_timeout]}
+           ) do
+        {:ok, _id} ->
+          :ok
+
+        error ->
+          # handle error
+          error
+      end
+    end)
+
+    cond do
+      instances
+      |> Keyword.keys()
+      |> Enum.all?(&(&1 == :unknown)) and not Enum.empty?(instances) ->
+        {:error, :unknown}
+
+      not Enum.empty?(unknown) ->
+        {:ok, unknown: unknown}
+
+      true ->
+        :ok
+    end
   end
 
   def create_instructions(nil) do

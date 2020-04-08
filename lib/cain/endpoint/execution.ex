@@ -1,7 +1,7 @@
 defmodule Cain.Endpoint.Execution do
   use Cain.Endpoint
 
-  def get(%{id: id}) do
+  def get(id) do
     get("/execution/#{id}", %{}, %{})
   end
 

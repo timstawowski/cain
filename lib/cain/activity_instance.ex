@@ -1,5 +1,7 @@
 defmodule Cain.ActivityInstance do
-  @callback purify(map(), list()) :: struct()
+  @callback purify({Cain.ActivityInstance.t(), list(Cain.Event.t())}, list()) :: struct()
+
+  @type t :: map()
 
   defmodule History do
     defstruct [
