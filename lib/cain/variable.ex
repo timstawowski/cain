@@ -7,7 +7,7 @@ defmodule Cain.Variable do
   # ]
 
   # @byte_precision -128..127
-  @short_precision -32_768..32_767
+  # @short_precision -32_768..32_767
   @integer_precision -2_147_483_648..2_147_483_647
   @long_precision -9_223_372_036_854_775_808..9_223_372_036_854_775_807
 
@@ -78,7 +78,7 @@ defmodule Cain.Variable do
   defp type(term) when is_float(term), do: "Double"
 
   # defp type(term) when is_number(term) and term in @byte_precision, do: "Byte"
-  defp type(term) when is_number(term) and term in @short_precision, do: "Short"
+  # defp type(term) when is_number(term) and term in @short_precision, do: "Short"
   defp type(term) when is_number(term) and term in @integer_precision, do: "Integer"
   defp type(term) when is_number(term) and term in @long_precision, do: "Long"
 
