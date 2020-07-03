@@ -11,6 +11,8 @@ defmodule Cain.Variable do
   @integer_precision -2_147_483_648..2_147_483_647
   @long_precision -9_223_372_036_854_775_808..9_223_372_036_854_775_807
 
+  @check_for_xml_content ~r/<[^>]+>/
+
   def cast(%{__struct__: _struct} = variables) do
     cast(Map.from_struct(variables))
   end
@@ -36,6 +38,18 @@ defmodule Cain.Variable do
   def cast([{name, %Date{} = date} | rest], acc) do
     cast(rest, [
       {Atom.to_string(name), %{"type" => "Date", "value" => cast_date(date)}} | acc
+    ])
+  end
+
+  def cast([{name, %NaiveDateTime{calendar: Calendar.ISO} = naive_date_time} | rest], acc) do
+    cast(rest, [
+      {Atom.to_string(name), %{"type" => "Date", "value" => cast_date(naive_date_time)}} | acc
+    ])
+  end
+
+  def cast([{name, %NaiveDateTime{}} | rest], acc) do
+    cast(rest, [
+      {Atom.to_string(name), {:error, :only_iso_calendar_supported}} | acc
     ])
   end
 
@@ -73,37 +87,54 @@ defmodule Cain.Variable do
   end
 
   defp type(term) when is_nil(term), do: "Null"
-  defp type(term) when is_binary(term), do: "String"
-  defp type(term) when is_boolean(term), do: "Boolean"
   defp type(term) when is_float(term), do: "Double"
+  defp type(term) when is_boolean(term), do: "Boolean"
+  defp type(term) when is_binary(term), do: evaluate_binary(term)
 
   # defp type(term) when is_number(term) and term in @byte_precision, do: "Byte"
   # defp type(term) when is_number(term) and term in @short_precision, do: "Short"
   defp type(term) when is_number(term) and term in @integer_precision, do: "Integer"
   defp type(term) when is_number(term) and term in @long_precision, do: "Long"
 
-  def format_milliseconds(%DateTime{microsecond: {ms, 0}} = date_time) do
+  defp evaluate_binary(term) do
+    if Regex.match?(@check_for_xml_content, term) do
+      "Xml"
+    else
+      "String"
+    end
+  end
+
+  defp cast_date(%Date{} = date) do
+    IO.iodata_to_binary([Date.to_iso8601(date), "T00:00:00.000+0000"])
+  end
+
+  defp cast_date(%{__struct__: date_time_format} = date_time) do
+    case format_milliseconds(date_time) do
+      :error ->
+        {:error, :invalid_date}
+
+      formattd_date_time ->
+        iso_date = apply(date_time_format, :to_iso8601, [formattd_date_time])
+
+        if String.contains?(iso_date, "Z") do
+          format_utc_offset(iso_date, date_time.utc_offset)
+        else
+          format_utc_offset(iso_date <> "Z", 0)
+        end
+    end
+  end
+
+  def format_milliseconds(%{__struct__: date_time_format, microsecond: {ms, 0}} = date_time) do
     opts =
       Map.from_struct(date_time)
       |> Map.put(:microsecond, {ms, 3})
       |> Map.to_list()
 
-    struct(DateTime, opts)
+    struct(date_time_format, opts)
   end
 
-  def format_milliseconds(date_time) do
-    DateTime.truncate(date_time, :millisecond)
-  end
-
-  defp cast_date(%DateTime{utc_offset: utc_offset} = date_time) do
-    date_time
-    |> format_milliseconds()
-    |> DateTime.to_iso8601()
-    |> format_utc_offset(utc_offset)
-  end
-
-  defp cast_date(%Date{} = date) do
-    IO.iodata_to_binary([Date.to_iso8601(date), "T00:00:00.000+0000"])
+  def format_milliseconds(%{__struct__: date_time_format} = date_time_data) do
+    apply(date_time_format, :truncate, [date_time_data, :millisecond])
   end
 
   defp format_utc_offset(iso_string, 0) do
@@ -112,7 +143,8 @@ defmodule Cain.Variable do
 
   defp format_utc_offset(iso_string, utc_offset) do
     h =
-      div(utc_offset, 60)
+      utc_offset
+      |> div(60)
       |> div(60)
 
     String.replace(iso_string, "Z", "+0#{h}00")
