@@ -59,8 +59,22 @@ defmodule Cain.Variable do
     ])
   end
 
-  def cast([{name, value} | rest], acc) do
+  def cast([{name, value} | rest], acc)
+      when is_boolean(value)
+      when is_nil(value) do
     cast(rest, [{Atom.to_string(name), %{"type" => type(value), "value" => value}} | acc])
+  end
+
+  def cast([{name, value} | rest], acc) when is_atom(value) do
+    cast(rest, [
+      {Atom.to_string(name), %{"type" => "String", "value" => Atom.to_string(value)}} | acc
+    ])
+  end
+
+  def cast([{name, value} | rest], acc) do
+    cast(rest, [
+      {Atom.to_string(name), %{"type" => type(value), "value" => value}} | acc
+    ])
   end
 
   def parse(variables) when is_map(variables) do

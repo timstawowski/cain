@@ -34,6 +34,7 @@ defmodule Cain.VariableTest do
   describe "primitive type casting: " do
     test "String" do
       assert cast(%{string: "test"}) == %{"string" => %{"value" => "test", "type" => "String"}}
+      assert cast(%{string: :test}) == %{"string" => %{"value" => "test", "type" => "String"}}
     end
 
     test "Null" do
