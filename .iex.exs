@@ -15,7 +15,7 @@ alias Cain.Endpoint
 alias Cain.Endpoint.{ExternalTask, ProcessDefinition}
 
 # DoStuff.start_link
-v = %{sum: {123, :long}, test: "bar"}
+# v = %{sum: {123, :long}, test: "bar"}
 
 a_i = %{
   "processInstanceId" => "c02717c4-1763-11ea-bb61-0242ac110004",

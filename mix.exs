@@ -28,7 +28,8 @@ defmodule Cain.MixProject do
   defp deps do
     [
       {:tesla, "~> 1.3.1"},
-      {:jason, ">= 1.0.0"}
+      {:jason, ">= 1.0.0"},
+      {:beauty_exml, github: "timstawowski/beauty_exml", branch: "master"}
     ]
   end
 end

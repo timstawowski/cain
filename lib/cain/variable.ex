@@ -72,8 +72,20 @@ defmodule Cain.Variable do
   end
 
   def cast([{name, value} | rest], acc) do
+    type = type(value)
+
+    value =
+      if type == "Xml" do
+        case BeautyExml.format(value) do
+          {:ok, formatted_xml} -> formatted_xml
+          :error -> value
+        end
+      else
+        value
+      end
+
     cast(rest, [
-      {Atom.to_string(name), %{"type" => type(value), "value" => value}} | acc
+      {Atom.to_string(name), %{"type" => type, "value" => value}} | acc
     ])
   end
 
