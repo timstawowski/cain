@@ -8,7 +8,12 @@ defmodule Cain.MixProject do
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      elixirc_paths: elixirc_paths(Mix.env())
+      elixirc_paths: elixirc_paths(Mix.env()),
+      description: description(),
+      package: package(),
+      deps: deps(),
+      name: "Cain",
+      source_url: "https://github.com/timstawowski/cain"
     ]
   end
 
@@ -16,7 +21,6 @@ defmodule Cain.MixProject do
   defp elixirc_paths(:dev), do: ["lib", "dev"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       mod: {Cain, []},
@@ -24,12 +28,23 @@ defmodule Cain.MixProject do
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:tesla, "~> 1.3.1"},
       {:jason, ">= 1.0.0"},
-      {:beauty_exml, "~> 0.1.0"}
+      {:beauty_exml, "~> 0.1.0"},
+      {:ex_doc, "~> 0.14", only: :dev, runtime: false}
+    ]
+  end
+
+  defp description do
+    "Camunda-REST-API-Interpreter"
+  end
+
+  defp package() do
+    [
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => "https://github.com/timstawowski/cain"}
     ]
   end
 end
