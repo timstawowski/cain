@@ -30,3 +30,5 @@ cain-*.tar
 .elixir_ls
 
 .iex.exs
+
+.tool-versions
