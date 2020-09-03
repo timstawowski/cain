@@ -13,6 +13,8 @@ defmodule Cain.Variable do
 
   @check_for_xml_content ~r/<[^>]+>/
 
+  @decode_types ["Json", "Object"]
+
   def cast(%{__struct__: _struct} = variables) do
     cast(Map.from_struct(variables))
   end
@@ -99,8 +101,19 @@ defmodule Cain.Variable do
     :error
   end
 
-  defp __parse__(%{"value" => value, "type" => "Json"}) do
-    Jason.decode!(value)
+  defp __parse__(%{"value" => value, "type" => decode_type})
+       when decode_type in @decode_types do
+    case Jason.decode(value) do
+      {:error, jason_decode_error} ->
+        IO.warn(
+          "Error while decoding with Jason.decode: #{inspect(jason_decode_error, pretty: true)} "
+        )
+
+        value
+
+      {:ok, value} ->
+        value
+    end
   end
 
   defp __parse__(%{"value" => value, "type" => "Date"}) do
