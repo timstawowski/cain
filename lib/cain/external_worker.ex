@@ -1,6 +1,6 @@
 defmodule Cain.ExternalWorker do
   use GenServer
-  require Logger
+
   import Cain.Endpoint, only: [submit: 1]
   alias Cain.Variable
   alias Cain.Endpoint.ExternalTask
@@ -88,8 +88,6 @@ defmodule Cain.ExternalWorker do
   def handle_info({reference, function_result}, state) when is_reference(reference) do
     case :ets.take(state.module, reference) do
       [{_reference, task_id}] ->
-        Logger.info("External function result is: #{inspect(function_result, pretty: true)}")
-
         case function_result do
           :ok ->
             ExternalTask.complete(
@@ -123,23 +121,21 @@ defmodule Cain.ExternalWorker do
               "retryTimeout" => retry_time_out_in_ms
             })
 
-          error ->
-            Logger.error(
-              "External_Worker recievd invalid function result: #{inspect(error, pretty: true)}"
-            )
+          invalid_function_result ->
+            ExternalTask.handle_failure(task_id, %{
+              "workerId" => state.worker_id,
+              "errorMessage" => "Invalid function result",
+              "errorDetails" => inspect(invalid_function_result),
+              "retries" => 0,
+              "retryTimeout" => 3000
+            })
         end
-        |> case do
-          :ok ->
-            nil
-
-          valid_request ->
-            submit(valid_request)
-        end
+        |> submit()
 
         {:noreply, state}
 
       [] ->
-        Logger.debug("No task for completed reference found")
+        IO.warn("No task for completion found by reference #{inspect(reference)}")
     end
   end
 
