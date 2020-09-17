@@ -8,9 +8,7 @@ defmodule Cain.Endpoint do
 
   @success_codes [200, 204]
 
-  @middleware [
-    Tesla.Middleware.JSON
-  ]
+  @middleware [Tesla.Middleware.JSON]
 
   def submit(request) do
     handle_response(GenServer.call(__MODULE__, request))
@@ -33,6 +31,10 @@ defmodule Cain.Endpoint do
     {:reply, Tesla.get(state, path, query: query), state}
   end
 
+  def handle_call({:put, path, query, body}, _from, state) do
+    {:reply, Tesla.put(state, path, body, query: Map.to_list(query)), state}
+  end
+
   def handle_call({:post, path, _query, body}, _from, state) do
     {:reply, Tesla.post(state, path, body), state}
   end
@@ -47,7 +49,7 @@ defmodule Cain.Endpoint do
   end
 
   defp handle_response({:ok, %Tesla.Env{status: status, body: body}}) do
-    Logger.error("Camunda Response ERROR with: #{inspect(body, pretty: true)}")
+    Logger.error("Camunda-REST-API [#{status}] - #{body["type"]}: #{body["message"]}")
     {:error, Error.cast(status, body)}
   end
 
