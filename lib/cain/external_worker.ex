@@ -3,7 +3,7 @@ defmodule Cain.ExternalWorker do
 
   alias Cain.{Endpoint, Endpoint.ExternalTask, Variable}
 
-  @default_ms 2000
+  @default_ms 3000
 
   defstruct [
     :worker_id,
@@ -24,7 +24,6 @@ defmodule Cain.ExternalWorker do
 
     quote do
       @behaviour Cain.ExternalWorker
-
       def start_link do
         GenServer.start_link(Cain.ExternalWorker, @init_args, name: __MODULE__)
       end
@@ -60,7 +59,7 @@ defmodule Cain.ExternalWorker do
       """
       @spec retry(String.t(), String.t(), pos_integer(), pos_integer()) ::
               {:incident, String.t(), String.t(), keyword()}
-      def retry(error_msg, error_details \\ "", retries \\ 2, retry_timeout \\ @default_ms)
+      def retry(error_msg, error_details \\ "", retries \\ 2, retry_timeout \\ 3000)
           when retries > 0 do
         {:incident, error_msg, error_details, retries, retry_timeout}
       end
@@ -72,7 +71,7 @@ defmodule Cain.ExternalWorker do
       """
       @spec create_incident(String.t(), String.t()) :: {:ok, map()}
       def create_incident(error_msg, error_details \\ "") do
-        {:incident, error_msg, error_details, 0, @default_ms}
+        {:incident, error_msg, error_details, 0, 3000}
       end
 
       @doc """
