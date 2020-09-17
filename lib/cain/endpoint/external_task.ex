@@ -47,8 +47,8 @@ defmodule Cain.Endpoint.ExternalTask do
     {:put, "/external-task/#{id}/priority", %{}, %{}}
   end
 
-  def set_retries(id) do
-    {:put, "/external-task/#{id}/retries", %{}, %{}}
+  def set_retries(id, retries) do
+    {:put, "/external-task/#{id}/retries", %{}, %{"retries" => retries}}
   end
 
   def set_retries_async do
