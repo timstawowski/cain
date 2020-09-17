@@ -60,9 +60,9 @@ defmodule Cain.ExternalWorker do
       """
       @spec retry(String.t(), String.t(), pos_integer(), pos_integer()) ::
               {:incident, String.t(), String.t(), keyword()}
-      def retry(error_msg, details, retries \\ 2, retry_timeout \\ @default_ms)
+      def retry(error_msg, error_details \\ "", retries \\ 2, retry_timeout \\ @default_ms)
           when retries > 0 do
-        {:incident, error_msg, details, retries, retry_timeout}
+        {:incident, error_msg, error_details, retries, retry_timeout}
       end
 
       @doc """
@@ -71,7 +71,7 @@ defmodule Cain.ExternalWorker do
       and `error_details` for a detailed error description.
       """
       @spec create_incident(String.t(), String.t()) :: {:ok, map()}
-      def create_incident(error_msg, error_details) do
+      def create_incident(error_msg, error_details \\ "") do
         {:incident, error_msg, error_details, 0, @default_ms}
       end
 
