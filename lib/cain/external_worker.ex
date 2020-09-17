@@ -122,7 +122,7 @@ defmodule Cain.ExternalWorker do
   def handle_info(:poll, state) do
     updated_state =
       fetch_and_lock(state)
-      |> invoke_external_task_function(state)
+      |> create_external_tasks(state)
 
     schedule_polling(state)
 
@@ -192,6 +192,17 @@ defmodule Cain.ExternalWorker do
     {:noreply, state}
   end
 
+  @impl true
+  def handle_info({task_id, invalid_function_result}, state) do
+    incident =
+      {task_id,
+       {:incident, "Invalid function result", inspect(invalid_function_result), 0, @default_ms}}
+
+    Process.send(self(), incident, [])
+
+    {:noreply, state}
+  end
+
   defp fetch_task_id(reference, workload) do
     Enum.find_value(workload, "", fn {task_id, task_info} ->
       task_info.task.ref == reference && task_id
@@ -205,15 +216,20 @@ defmodule Cain.ExternalWorker do
     |> Cain.Endpoint.submit()
   end
 
-  defp invoke_external_task_function(ex_tasks, state) do
+  defp create_external_tasks(ex_tasks, state) do
     Enum.reduce(ex_tasks, state, fn ex_task, %{workload: workload} = state ->
       topic_name = String.to_existing_atom(ex_task["topicName"])
 
       {mod, func, args} = referenced_function(state.topics, topic_name)
       task = Task.async(mod, func, [ex_task] ++ args)
 
-      updated_workload =
-        Map.put(workload, ex_task["id"], %{task: task, retries: ex_task["retries"]})
+      ex_task_info = %{
+        topic_name: topic_name,
+        task: task,
+        retries: ex_task["retries"]
+      }
+
+      updated_workload = Map.put(workload, ex_task["id"], ex_task_info)
 
       %{state | workload: updated_workload}
     end)
