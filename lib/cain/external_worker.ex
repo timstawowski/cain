@@ -219,8 +219,11 @@ defmodule Cain.ExternalWorker do
     Enum.reduce(ex_tasks, state, fn ex_task, %{workload: workload} = state ->
       topic_name = String.to_existing_atom(ex_task["topicName"])
 
+      ex_task_with_parsed_vars =
+        Map.update(ex_task, "variables", ex_task["variables"], &Variable.parse/1)
+
       {mod, func, args} = referenced_function(state.topics, topic_name)
-      task = Task.async(mod, func, [ex_task] ++ args)
+      task = Task.async(mod, func, [ex_task_with_parsed_vars] ++ args)
 
       ex_task_info = %{
         topic_name: topic_name,
