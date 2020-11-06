@@ -1,9 +1,9 @@
 defmodule Cain.Endpoint.Error do
   @type t :: %__MODULE__{
-    type: String.t(),
-    message: String.t(),
-    http_status: String.t()
-  }
+          type: String.t(),
+          message: String.t(),
+          http_status: String.t()
+        }
   defstruct [
     :type,
     :message,

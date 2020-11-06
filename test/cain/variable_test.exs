@@ -6,7 +6,10 @@ defmodule Cain.VariableTest do
   describe "complex type casting: " do
     test "Xml" do
       assert cast(%{xml_data: "<test><case>value</case><value>string</value></test>"}) == %{
-               "xml_data" => %{"value" => "<test>\n\t<case>value</case>\n\t<value>string</value>\n</test>", "type" => "Xml"}
+               "xml_data" => %{
+                 "value" => "<test>\n\t<case>value</case>\n\t<value>string</value>\n</test>",
+                 "type" => "Xml"
+               }
              }
 
       assert cast(%{xml_data: "value"}) != %{"xml_data" => %{"value" => "value", "type" => "Xml"}}
