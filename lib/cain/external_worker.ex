@@ -3,19 +3,20 @@ defmodule Cain.ExternalWorker do
 
   alias Cain.{Endpoint, Endpoint.ExternalTask, Variable}
 
-  @default_ms 3000
-
   defstruct [
     :worker_id,
     :module,
     :topics,
     max_tasks: 3,
     use_priority: false,
-    polling_interval: @default_ms,
+    polling_interval: 3000,
     workload: %{}
   ]
 
-  @callback register_topics() :: [{atom(), {atom(), atom(), list()}, list()}]
+  @type topic :: {atom(), {module(), atom(), keyword()}, keyword()}
+  @type topics :: list(topic)
+
+  @callback register_topics() :: topics
 
   defmacro __using__(opts) do
     init_args = Keyword.put_new(opts, :module, __CALLER__.module)
@@ -102,21 +103,12 @@ defmodule Cain.ExternalWorker do
   end
 
   @impl true
-  def handle_continue(:invoke_polling, state) do
-    schedule_polling(state)
-    {:noreply, state}
-  end
-
-  @impl true
   def handle_cast({:update, updates}, state) do
     valid_updates = Keyword.take(updates, Map.keys(state))
     attr = Keyword.merge(Map.to_list(state), valid_updates)
     {:noreply, struct(__MODULE__, attr)}
   end
 
-  # fetch_and_lock tasks
-  # invoke task
-  # schedule poll
   @impl true
   def handle_info(:poll, state) do
     updated_state =
@@ -131,73 +123,67 @@ defmodule Cain.ExternalWorker do
   @impl true
   def handle_info({reference, function_result}, state) when is_reference(reference) do
     task_id = fetch_task_id(reference, state.workload)
-    Process.send(self(), {task_id, function_result}, [])
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({task_id, {:ok, variables}}, state) do
-    submit(task_id, &ExternalTask.complete/2, variable_params(variables), state.worker_id)
-    delete_task(task_id)
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({task_id, {:bpmn_error, err_code, err_msg, variables}}, state) do
-    var_params = variable_params(variables)
-    err_params = %{"errorCode" => err_code, "errorMessage" => err_msg}
-    request = Map.merge(var_params, err_params)
-
-    submit(task_id, &ExternalTask.handle_bpmn_error/2, request, state.worker_id)
-    delete_task(task_id)
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({task_id, {:incident, err_msg, err_details, retries, retry_timout}}, state) do
-    retries =
-      state.workload
-      |> get_in([task_id, :retries])
-      |> Kernel.||(retries + 1)
-      |> Kernel.-(1)
-
-    workload = put_in(state.workload, [task_id, :retries], retries)
-
-    request = %{
-      "errorMessage" => err_msg,
-      "errorDetails" => err_details,
-      "retries" => retries,
-      "retryTimeout" => retry_timout
-    }
-
-    submit(task_id, &ExternalTask.handle_failure/2, request, state.worker_id)
-
-    if retries <= 0 do
-      delete_task(task_id)
-    end
-
-    {:noreply, %{state | workload: workload}}
-  end
-
-  @impl true
-  def handle_info({:delete_task, task_id}, state) do
-    {:noreply, %{state | workload: Map.delete(state.workload, task_id)}}
-  end
-
-  @impl true
-  def handle_info({:DOWN, _reference, :process, _function_operator_pid, :normal}, state) do
-    {:noreply, state}
+    {:noreply, state, {:continue, {task_id, function_result}}}
   end
 
   @impl true
   def handle_info({task_id, invalid_function_result}, state) do
-    incident =
-      {task_id,
-       {:incident, "Invalid function result", inspect(invalid_function_result), 0, @default_ms}}
+    incident = {:incident, "Invalid function result", inspect(invalid_function_result), 0, 3000}
+    {:noreply, state, {:continue, {task_id, incident}}}
+  end
 
-    Process.send(self(), incident, [])
+  @impl true
+  def handle_info({:DOWN, reference, :process, _pid, :normal}, state) do
+    task_id = fetch_task_id(reference, state.workload)
+    workload = Map.delete(state.workload, task_id)
+    {:noreply, %{state | workload: workload}}
+  end
+
+  @impl true
+  def handle_continue(:invoke_polling, state) do
+    schedule_polling(state)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_continue({task_id, {:ok, variables}}, state) do
+    request_body = %{"workerId" => state.worker_id, "variables" => Variable.cast(variables)}
+
+    ExternalTask.complete(task_id, request_body)
+    |> Endpoint.submit()
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_continue({task_id, {:bpmn_error, err_code, err_msg, variables}}, state) do
+    request_body = %{
+      "workerId" => state.worker_id,
+      "errorCode" => err_code,
+      "errorMessage" => err_msg,
+      "variables" => Variable.cast(variables)
+    }
+
+    ExternalTask.handle_bpmn_error(task_id, request_body)
+    |> Endpoint.submit()
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_continue({task_id, {:incident, err_msg, err_details, retries, retry_timout}}, state) do
+    current_retries = calculate_retries(state.workload, task_id, retries)
+
+    request_body = %{
+      "workerId" => state.worker_id,
+      "errorMessage" => err_msg,
+      "errorDetails" => err_details,
+      "retries" => current_retries,
+      "retryTimeout" => retry_timout
+    }
+
+    ExternalTask.handle_failure(task_id, request_body)
+    |> Endpoint.submit()
 
     {:noreply, state}
   end
@@ -208,40 +194,24 @@ defmodule Cain.ExternalWorker do
     end)
   end
 
-  defp variable_params(variables), do: %{"variables" => Variable.cast(variables)}
-
-  defp submit(task_id, endpoint, request, worker_id) do
-    endpoint.(task_id, Map.put(request, "workerId", worker_id))
-    |> Cain.Endpoint.submit()
+  defp calculate_retries(workload, task_id, retries) do
+    workload
+    |> get_in([task_id, :retries])
+    |> Kernel.||(retries + 1)
+    |> Kernel.-(1)
   end
 
   defp create_external_tasks(ex_tasks, state) do
     Enum.reduce(ex_tasks, state, fn ex_task, %{workload: workload} = state ->
-      topic_name = String.to_existing_atom(ex_task["topicName"])
+      task_info =
+        state.topics
+        |> invoke_task(ex_task)
+        |> create_task_info()
 
-      ex_task_with_parsed_vars =
-        Map.update(ex_task, "variables", ex_task["variables"], &Variable.parse/1)
-
-      {mod, func, args} = referenced_function(state.topics, topic_name)
-      task = Task.async(mod, func, [ex_task_with_parsed_vars] ++ args)
-
-      ex_task_info = %{
-        topic_name: topic_name,
-        task: task,
-        retries: ex_task["retries"]
-      }
-
-      updated_workload = Map.put(workload, ex_task["id"], ex_task_info)
+      updated_workload = Map.put(workload, ex_task["id"], task_info)
 
       %{state | workload: updated_workload}
     end)
-  end
-
-  defp referenced_function(topics, topic_name) do
-    Enum.find(topics, fn {topic, _, _} ->
-      topic == topic_name
-    end)
-    |> elem(1)
   end
 
   defp fetch_and_lock(state) do
@@ -259,13 +229,30 @@ defmodule Cain.ExternalWorker do
     end
   end
 
-  defp create_topics({topic, _referenced_func, opts}) do
-    topic_name = Atom.to_string(topic)
-    lock_duration = Keyword.get(opts, :lock_duration, @default_ms)
-    %{"topicName" => topic_name, "lockDuration" => lock_duration}
+  defp invoke_task(topics, external_task) do
+    topic_name = String.to_existing_atom(external_task["topicName"])
+
+    parsed_vars =
+      Map.update(external_task, "variables", external_task["variables"], &Variable.parse/1)
+
+    {mod, func, args} = referenced_function(topics, topic_name)
+    task = Task.async(mod, func, [parsed_vars] ++ args)
+    {topic_name, task, external_task["retries"]}
   end
 
-  defp delete_task(task_id), do: Process.send(self(), {:delete_task, task_id}, [])
+  defp referenced_function(topics, topic_name) do
+    Enum.find(topics, &(elem(&1, 0) == topic_name))
+    |> elem(1)
+  end
+
+  defp create_task_info({topic_name, task, retries}),
+    do: %{topic_name: topic_name, task: task, retries: retries}
+
+  defp create_topics({topic, _referenced_func, opts}) do
+    topic_name = Atom.to_string(topic)
+    lock_duration = Keyword.get(opts, :lock_duration, 3000)
+    %{"topicName" => topic_name, "lockDuration" => lock_duration}
+  end
 
   defp schedule_polling(state), do: Process.send_after(self(), :poll, state.polling_interval)
 
