@@ -59,7 +59,7 @@ defmodule Cain.ExternalWorker do
       Must be >= 0.
       """
       @spec retry(String.t(), String.t(), pos_integer(), pos_integer()) ::
-              {:incident, String.t(), String.t(), keyword()}
+              {:incident, String.t(), String.t(), pos_integer(), pos_integer()}
       def retry(error_msg, error_details \\ "", retries \\ 2, retry_timeout \\ 3000)
           when retries > 0 do
         {:incident, error_msg, error_details, retries, retry_timeout}
@@ -70,7 +70,8 @@ defmodule Cain.ExternalWorker do
       Add a `error_msg` with a max of 666 characters to indicate the reason of the failure
       and `error_details` for a detailed error description.
       """
-      @spec create_incident(String.t(), String.t()) :: {:ok, map()}
+      @spec create_incident(String.t(), String.t()) ::
+              {:incident, String.t(), String.t(), non_neg_integer(), pos_integer()}
       def create_incident(error_msg, error_details \\ "") do
         {:incident, error_msg, error_details, 0, 3000}
       end
