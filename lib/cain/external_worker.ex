@@ -13,6 +13,16 @@ defmodule Cain.ExternalWorker do
     workload: %{}
   ]
 
+  defmodule ExternalTask do
+    @moduledoc false
+
+    defstruct [:topic_name, :retries, :task, status: :running]
+
+    @spec mark_as_processed(ExternalTask.t()) :: ExternalTask.t()
+    def mark_as_processed(%__MODULE__{} = external_task),
+      do: %{external_task | status: :processed}
+  end
+
   @type topic :: {atom(), {module(), atom(), keyword()}, keyword()}
   @type topics :: list(topic)
 
@@ -136,7 +146,13 @@ defmodule Cain.ExternalWorker do
   @impl true
   def handle_info({:DOWN, reference, :process, _pid, :normal}, state) do
     task_id = fetch_task_id(reference, state.workload)
-    workload = Map.delete(state.workload, task_id)
+    external_task = state.workload[task_id]
+
+    workload =
+      if external_task.status == :processed,
+        do: Map.delete(state.workload, task_id),
+        else: state.workload
+
     {:noreply, %{state | workload: workload}}
   end
 
@@ -150,10 +166,12 @@ defmodule Cain.ExternalWorker do
   def handle_continue({task_id, {:ok, variables}}, state) do
     request_body = %{"workerId" => state.worker_id, "variables" => Variable.cast(variables)}
 
-    ExternalTask.complete(task_id, request_body)
+    Endpoint.ExternalTask.complete(task_id, request_body)
     |> Endpoint.submit()
 
-    {:noreply, state}
+    workload = mark_external_task_as_processed(task_id, state.workload)
+
+    {:noreply, %{state | workload: workload}}
   end
 
   @impl true
@@ -165,10 +183,11 @@ defmodule Cain.ExternalWorker do
       "variables" => Variable.cast(variables)
     }
 
-    ExternalTask.handle_bpmn_error(task_id, request_body)
+    Endpoint.ExternalTask.handle_bpmn_error(task_id, request_body)
     |> Endpoint.submit()
 
-    {:noreply, state}
+    workload = mark_external_task_as_processed(task_id, state.workload)
+    {:noreply, %{state | workload: workload}}
   end
 
   @impl true
@@ -183,10 +202,11 @@ defmodule Cain.ExternalWorker do
       "retryTimeout" => retry_timout
     }
 
-    ExternalTask.handle_failure(task_id, request_body)
+    Endpoint.ExternalTask.handle_failure(task_id, request_body)
     |> Endpoint.submit()
 
-    {:noreply, state}
+    workload = mark_external_task_as_processed(task_id, state.workload)
+    {:noreply, %{state | workload: workload}}
   end
 
   defp fetch_task_id(reference, workload) do
@@ -204,12 +224,8 @@ defmodule Cain.ExternalWorker do
 
   defp create_external_tasks(ex_tasks, state) do
     Enum.reduce(ex_tasks, state, fn ex_task, %{workload: workload} = state ->
-      task_info =
-        state.topics
-        |> invoke_task(ex_task)
-        |> create_task_info()
-
-      updated_workload = Map.put(workload, ex_task["id"], task_info)
+      external_task = apply_external_task(state.topics, ex_task)
+      updated_workload = Map.put(workload, ex_task["id"], external_task)
 
       %{state | workload: updated_workload}
     end)
@@ -222,7 +238,7 @@ defmodule Cain.ExternalWorker do
       "maxTasks" => state.max_tasks,
       "topics" => Enum.map(state.topics, &create_topics(&1))
     }
-    |> ExternalTask.fetch_and_lock()
+    |> Endpoint.ExternalTask.fetch_and_lock()
     |> Endpoint.submit()
     |> case do
       {:ok, locked_tasks} -> locked_tasks
@@ -230,30 +246,27 @@ defmodule Cain.ExternalWorker do
     end
   end
 
-  defp invoke_task(topics, external_task) do
+  defp apply_external_task(topics, external_task) do
     topic_name = String.to_existing_atom(external_task["topicName"])
-
-    parsed_vars =
-      Map.update(external_task, "variables", external_task["variables"], &Variable.parse/1)
+    parsed_vars = Map.update!(external_task, "variables", &Variable.parse/1)
 
     {mod, func, args} = referenced_function(topics, topic_name)
     task = Task.async(mod, func, [parsed_vars] ++ args)
-    {topic_name, task, external_task["retries"]}
+
+    %ExternalTask{topic_name: topic_name, task: task, retries: external_task["retries"]}
   end
 
-  defp referenced_function(topics, topic_name) do
-    Enum.find(topics, &(elem(&1, 0) == topic_name))
-    |> elem(1)
-  end
-
-  defp create_task_info({topic_name, task, retries}),
-    do: %{topic_name: topic_name, task: task, retries: retries}
+  defp referenced_function(topics, topic_name),
+    do: Enum.find(topics, &(elem(&1, 0) == topic_name)) |> elem(1)
 
   defp create_topics({topic, _referenced_func, opts}) do
     topic_name = Atom.to_string(topic)
     lock_duration = Keyword.get(opts, :lock_duration, 3000)
     %{"topicName" => topic_name, "lockDuration" => lock_duration}
   end
+
+  defp mark_external_task_as_processed(task_id, workload),
+    do: put_in(workload, [task_id], ExternalTask.mark_as_processed(workload[task_id]))
 
   defp schedule_polling(state), do: Process.send_after(self(), :poll, state.polling_interval)
 
