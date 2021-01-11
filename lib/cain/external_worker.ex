@@ -16,6 +16,12 @@ defmodule Cain.ExternalWorker do
   defmodule ExternalTask do
     @moduledoc false
 
+    @type t :: %__MODULE__{
+            topic_name: String.t(),
+            retries: non_neg_integer(),
+            task: Task.t(),
+            status: :running | :processed
+          }
     defstruct [:topic_name, :retries, :task, status: :running]
 
     @spec mark_as_processed(ExternalTask.t()) :: ExternalTask.t()
