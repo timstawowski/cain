@@ -280,6 +280,6 @@ defmodule Cain.ExternalWorker do
   defp worker_id(module) do
     {:ok, hostname} = :inet.gethostname()
 
-    "#{module}<#{hostname}>"
+    "#{module}<#{hostname}#{inspect(self())}>"
   end
 end
