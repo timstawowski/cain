@@ -222,8 +222,9 @@ defmodule Cain.ExternalWorker do
   end
 
   defp calculate_retries(workload, task_id, retries) do
-    workload
-    |> get_in([task_id, :retries])
+    external_task = workload[task_id]
+
+    external_task.retries
     |> Kernel.||(retries + 1)
     |> Kernel.-(1)
   end
