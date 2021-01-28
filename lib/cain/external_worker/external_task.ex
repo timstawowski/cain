@@ -1,5 +1,7 @@
 defmodule Cain.ExternalWorker.ExternalTask do
-  @moduledoc false
+  @moduledoc """
+  State of fetched external task from Camunda-BPM-REST-API.
+  """
 
   @type t :: %__MODULE__{
           topic_name: String.t(),
