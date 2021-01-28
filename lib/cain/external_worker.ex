@@ -10,6 +10,8 @@ defmodule Cain.ExternalWorker do
 
   alias __MODULE__.ExternalTask
 
+  require Logger
+
   @typedoc """
   Name of the topic name in the BPMN-Model to be referenced.
   """
@@ -131,7 +133,7 @@ defmodule Cain.ExternalWorker do
   end
 
   @impl true
-  def init([{:module, module} | _] = init_args) do
+  def init([{:module, module} | init_args]) do
     worker_id = worker_id(module)
     topics = apply(module, :register_topics, [])
     init_state = struct(__MODULE__, init_args ++ [worker_id: worker_id, topics: topics])
@@ -193,6 +195,17 @@ defmodule Cain.ExternalWorker do
   end
 
   @impl true
+  def handle_continue({nil, function_result}, state) do
+    type = elem(function_result, 0)
+
+    Logger.warn(
+      "Recieved invalid 'external_task_id' with type '#{inspect(type)}', function result will be ignored."
+    )
+
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_continue({task_id, {:ok, variables}}, state) do
     request_body = %{"workerId" => state.worker_id, "variables" => Variable.cast(variables)}
 
@@ -240,7 +253,7 @@ defmodule Cain.ExternalWorker do
   end
 
   defp fetch_task_id(reference, workload) do
-    Enum.find_value(workload, "", fn {task_id, task_info} ->
+    Enum.find_value(workload, fn {task_id, task_info} ->
       task_info.task.ref == reference && task_id
     end)
   end
