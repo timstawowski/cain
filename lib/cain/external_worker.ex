@@ -1,7 +1,53 @@
 defmodule Cain.ExternalWorker do
+  @moduledoc """
+  Helper to handle external tasks with the Camunda-BPM.
+  """
+
   use GenServer
 
-  alias Cain.{Endpoint, Endpoint.ExternalTask, Variable}
+  alias Cain.Endpoint
+  alias Cain.Endpoint.ExternalTask
+  alias Cain.Variable
+
+  @typedoc """
+  Name of the topic name in the BPMN-Model to be referenced.
+  """
+  @type ref_topic_name :: atom
+
+  @typedoc """
+  MFA of the actual function which should be applied.
+  """
+  @type work_to_be_processed :: {module, atom, keyword}
+
+  @typedoc """
+  Time in milliseconds to be locked for a `Cain.ExternalWorker` process while fetching a topic.
+  """
+  @type lock_duration :: [lock_duration: pos_integer]
+
+  @typedoc """
+  Reference format to indicate the referenced.
+  """
+  @type topic :: {ref_topic_name, work_to_be_processed, lock_duration}
+  @type topics :: list(topic)
+
+  @type varibles :: %{atom => any}
+
+  @type error_code :: binary
+  @type error_message :: binary
+  @type error_details :: binary
+
+  @type retries :: pos_integer
+  @type retry_timout :: pos_integer
+
+  @typedoc """
+  Valid return values for `Cain.ExternalWorker` computing a referenced topic function.
+  """
+  @type success :: {:ok, varibles()}
+  @type retry :: {:incident, error_message(), error_details(), retries(), retry_timout()}
+  @type incident :: {:incident, error_message(), error_details(), 0, retry_timout()}
+  @type bpmn_error :: {:bpmn_error, error_code(), error_message(), varibles()}
+
+  @callback register_topics() :: topics
 
   defstruct [
     :worker_id,
@@ -28,11 +74,6 @@ defmodule Cain.ExternalWorker do
     def mark_as_processed(%__MODULE__{} = external_task),
       do: %{external_task | status: :processed}
   end
-
-  @type topic :: {atom(), {module(), atom(), keyword()}, keyword()}
-  @type topics :: list(topic)
-
-  @callback register_topics() :: topics
 
   defmacro __using__(opts) do
     init_args = Keyword.put_new(opts, :module, __CALLER__.module)
@@ -62,7 +103,7 @@ defmodule Cain.ExternalWorker do
       Accepts an map with atom as keys for adding process variables.
       Local variables are not supported yet.
       """
-      @spec success(%{atom() => any()}) :: {:ok, map()}
+      @spec success(%{atom() => any()}) :: Cain.ExternalWorker.success()
       def success(variables \\ %{}) do
         {:ok, variables}
       end
@@ -75,7 +116,7 @@ defmodule Cain.ExternalWorker do
       Must be >= 0.
       """
       @spec retry(String.t(), String.t(), pos_integer(), pos_integer()) ::
-              {:incident, String.t(), String.t(), pos_integer(), pos_integer()}
+              Cain.ExternalWorker.retry()
       def retry(error_msg, error_details \\ "", retries \\ 2, retry_timeout \\ 3000)
           when retries > 0 do
         {:incident, error_msg, error_details, retries, retry_timeout}
@@ -86,8 +127,7 @@ defmodule Cain.ExternalWorker do
       Add a `error_msg` with a max of 666 characters to indicate the reason of the failure
       and `error_details` for a detailed error description.
       """
-      @spec create_incident(String.t(), String.t()) ::
-              {:incident, String.t(), String.t(), non_neg_integer(), pos_integer()}
+      @spec create_incident(String.t(), String.t()) :: Cain.ExternalWorker.incident()
       def create_incident(error_msg, error_details \\ "") do
         {:incident, error_msg, error_details, 0, 3000}
       end
@@ -98,8 +138,7 @@ defmodule Cain.ExternalWorker do
       `error_msg` with a max of 666 characters that describes the error.
       Accepts an map with atom as keys for adding process variables.
       """
-      @spec throw_bpmn_error(String.t(), String.t(), map()) ::
-              {:bpmn_error, String.t(), String.t(), map()}
+      @spec throw_bpmn_error(String.t(), String.t(), map()) :: Cain.ExternalWorker.bpmn_error()
       def throw_bpmn_error(error_code, error_msg, variables \\ %{}) do
         {:bpmn_error, error_code, error_msg, variables}
       end
