@@ -6,8 +6,9 @@ defmodule Cain.ExternalWorker do
   use GenServer
 
   alias Cain.Endpoint
-  alias Cain.Endpoint.ExternalTask
   alias Cain.Variable
+
+  alias __MODULE__.ExternalTask
 
   @typedoc """
   Name of the topic name in the BPMN-Model to be referenced.
@@ -58,22 +59,6 @@ defmodule Cain.ExternalWorker do
     polling_interval: 3000,
     workload: %{}
   ]
-
-  defmodule ExternalTask do
-    @moduledoc false
-
-    @type t :: %__MODULE__{
-            topic_name: String.t(),
-            retries: non_neg_integer(),
-            task: Task.t(),
-            status: :running | :processed
-          }
-    defstruct [:topic_name, :retries, :task, status: :running]
-
-    @spec mark_as_processed(ExternalTask.t()) :: ExternalTask.t()
-    def mark_as_processed(%__MODULE__{} = external_task),
-      do: %{external_task | status: :processed}
-  end
 
   defmacro __using__(opts) do
     init_args = Keyword.put_new(opts, :module, __CALLER__.module)
