@@ -170,12 +170,6 @@ defmodule Cain.ExternalWorker do
   end
 
   @impl true
-  def handle_info({task_id, invalid_function_result}, state) do
-    incident = {:incident, "Invalid function result", inspect(invalid_function_result), 0, 3000}
-    {:noreply, state, {:continue, {task_id, incident}}}
-  end
-
-  @impl true
   def handle_info({:DOWN, reference, :process, _pid, :normal}, state) do
     task_id = fetch_task_id(reference, state.workload)
     external_task = state.workload[task_id]
@@ -250,6 +244,13 @@ defmodule Cain.ExternalWorker do
 
     workload = mark_external_task_as_processed(task_id, state.workload)
     {:noreply, %{state | workload: workload}}
+  end
+
+  @impl true
+  def handle_continue({task_id, invalid_function_result}, state) do
+    Logger.error("Recieved invalid function result for external_task_id '#{task_id}', creating incident.")
+    incident = {:incident, "Invalid function result", inspect(invalid_function_result), 0, 3000}
+    {:noreply, state, {:continue, {task_id, incident}}}
   end
 
   defp fetch_task_id(reference, workload) do

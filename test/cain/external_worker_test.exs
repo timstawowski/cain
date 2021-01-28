@@ -39,5 +39,17 @@ defmodule Cain.ExternalWorkerTest do
 
       assert result =~ "Recieved invalid 'external_task_id' with type ':ok'"
     end
+
+    test "invalid function result creates error log message and invokes incident" do
+      result =
+        assert capture_log(fn ->
+                 Cain.ExternalWorker.handle_continue(
+                   {"EXTERNAL_TASK_ID", {:error, :casting_failed}},
+                   %{}
+                 )
+               end)
+
+      assert result =~ "Recieved invalid function result for external_task_id 'EXTERNAL_TASK_ID'"
+    end
   end
 end
