@@ -56,6 +56,7 @@ defmodule Cain.ExternalWorker do
     :worker_id,
     :module,
     :topics,
+    client: Cain.RestClient.Default,
     max_tasks: 3,
     use_priority: false,
     polling_interval: 3000,
@@ -192,9 +193,10 @@ defmodule Cain.ExternalWorker do
   def handle_continue({nil, function_result}, state) do
     type = elem(function_result, 0)
 
-    Logger.warn(
+    warn_log_msg =
       "Recieved invalid 'external_task_id' with type '#{inspect(type)}', function result will be ignored."
-    )
+
+    Logger.warn(warn_log_msg)
 
     {:noreply, state}
   end
@@ -203,12 +205,7 @@ defmodule Cain.ExternalWorker do
   def handle_continue({task_id, {:ok, variables}}, state) do
     request_body = %{"workerId" => state.worker_id, "variables" => Variable.cast(variables)}
 
-    Endpoint.ExternalTask.complete(task_id, request_body)
-    |> Endpoint.submit()
-
-    workload = mark_external_task_as_processed(task_id, state.workload)
-
-    {:noreply, %{state | workload: workload}}
+    {:noreply, state, {:continue, {task_id, request_body, &Endpoint.ExternalTask.complete/2}}}
   end
 
   @impl true
@@ -220,11 +217,8 @@ defmodule Cain.ExternalWorker do
       "variables" => Variable.cast(variables)
     }
 
-    Endpoint.ExternalTask.handle_bpmn_error(task_id, request_body)
-    |> Endpoint.submit()
-
-    workload = mark_external_task_as_processed(task_id, state.workload)
-    {:noreply, %{state | workload: workload}}
+    {:noreply, state,
+     {:continue, {task_id, request_body, &Endpoint.ExternalTask.handle_bpmn_error/2}}}
   end
 
   @impl true
@@ -243,16 +237,10 @@ defmodule Cain.ExternalWorker do
       "retryTimeout" => retry_timout
     }
 
-    Endpoint.ExternalTask.handle_failure(task_id, request_body)
-    |> Endpoint.submit()
+    workload_with_updated_retries = Map.put(state.workload, task_id, ex_task_with_updated_retries)
 
-    workload_with_updated_external_task =
-      put_in(state.workload, [task_id], ex_task_with_updated_retries)
-
-    updated_workload =
-      mark_external_task_as_processed(task_id, workload_with_updated_external_task)
-
-    {:noreply, %{state | workload: updated_workload}}
+    {:noreply, %{state | workload: workload_with_updated_retries},
+     {:continue, {task_id, request_body, &Endpoint.ExternalTask.handle_failure/2}}}
   end
 
   @impl true
@@ -264,6 +252,24 @@ defmodule Cain.ExternalWorker do
 
     incident = {:incident, "Invalid function result", inspect(invalid_function_result), 0, 3000}
     {:noreply, state, {:continue, {task_id, incident}}}
+  end
+
+  @impl true
+  def handle_continue({task_id, request_body, func}, %{client: client} = state) do
+    external_task = state.workload[task_id]
+
+    updated_external_task =
+      case client.submit(func.(task_id, request_body)) do
+        {:ok, _} ->
+          ExternalTask.mark_as_processed(external_task)
+
+        {:error, cain_error} ->
+          # handle errors?
+          ExternalTask.add_error(external_task, cain_error)
+      end
+
+    updaed_workload = Map.put(state.workload, task_id, updated_external_task)
+    {:noreply, %{state | workload: updaed_workload}}
   end
 
   defp fetch_task_id(reference, workload) do
@@ -290,15 +296,14 @@ defmodule Cain.ExternalWorker do
   end
 
   defp fetch_and_lock(state) do
-    %{
+    request_body = %{
       "workerId" => state.worker_id,
       "usePriority" => state.use_priority,
       "maxTasks" => state.max_tasks,
       "topics" => Enum.map(state.topics, &create_topics(&1))
     }
-    |> Endpoint.ExternalTask.fetch_and_lock()
-    |> Endpoint.submit()
-    |> case do
+
+    case state.client.submit(Endpoint.ExternalTask.fetch_and_lock(request_body)) do
       {:ok, locked_tasks} -> locked_tasks
       _error -> []
     end
@@ -322,9 +327,6 @@ defmodule Cain.ExternalWorker do
     lock_duration = Keyword.get(opts, :lock_duration, 3000)
     %{"topicName" => topic_name, "lockDuration" => lock_duration}
   end
-
-  defp mark_external_task_as_processed(task_id, workload),
-    do: put_in(workload, [task_id], ExternalTask.mark_as_processed(workload[task_id]))
 
   defp schedule_polling(state), do: Process.send_after(self(), :poll, state.polling_interval)
 

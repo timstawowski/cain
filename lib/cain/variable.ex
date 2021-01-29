@@ -6,6 +6,8 @@ defmodule Cain.Variable do
   #   :xml
   # ]
 
+  @type set :: %{atom => any()}
+
   # @byte_precision -128..127
   # @short_precision -32_768..32_767
   @integer_precision -2_147_483_648..2_147_483_647
@@ -15,6 +17,7 @@ defmodule Cain.Variable do
 
   @decode_types ["Json", "Object"]
 
+  @spec cast(struct | map | list) :: map
   def cast(%{__struct__: _struct} = variables) do
     cast(Map.from_struct(variables))
   end

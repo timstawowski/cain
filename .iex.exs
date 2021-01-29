@@ -8,7 +8,7 @@
 # mdc = %{costEstimatePosition: %{"cost" => 242}}
 # pp = %{purchasePrice: 5, purchaseParticipation: 5, pastMonthsSinceBeginningOfContract: 6}
 
-Cain.Endpoint.start_link()
+# Cain.Endpoint.start_link()
 
 alias Cain.ProcessInstance
 alias Cain.Endpoint

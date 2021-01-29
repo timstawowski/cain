@@ -7,9 +7,14 @@ defmodule Cain.ExternalWorker.ExternalTask do
           topic_name: atom,
           retries: non_neg_integer | nil,
           task: Task.t(),
-          status: :running | :processed
+          status: :running | :processed | :error,
+          errors: list()
         }
-  defstruct [:topic_name, :retries, :task, status: :running]
+  defstruct [:topic_name, :retries, :task, status: :running, errors: []]
+
+  @spec add_error(ExternalTask.t(), Cain.Endpoint.Error.t()) :: ExternalTask.t()
+  def add_error(%__MODULE__{errors: errors} = external_task, cain_error),
+    do: %{external_task | status: :error, errors: [cain_error | errors]}
 
   @spec mark_as_processed(ExternalTask.t()) :: ExternalTask.t()
   def mark_as_processed(%__MODULE__{} = external_task),

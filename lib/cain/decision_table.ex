@@ -1,9 +1,11 @@
 defmodule Cain.DecisionTable do
-  alias Cain.Endpoint
+  @moduledoc false
+
   alias Cain.Endpoint.DecisionDefinition
 
-  defmacro __using__(params) do
-    key = Keyword.get(params, :definition_key)
+  defmacro __using__(opts) do
+    key = Keyword.get(opts, :definition_key)
+    client = Keyword.get(opts, :client, Cain.RestClient.Default)
 
     cond do
       is_nil(key) ->
@@ -14,16 +16,16 @@ defmodule Cain.DecisionTable do
     end
 
     quote do
+      @spec evaluate(Cain.Endpoint.strategies(), Cain.Variable.set()) :: Cain.Endpoint.response()
       def evaluate(strategy \\ {:key, @key}, body)
 
       def evaluate(strategy, body) do
-        DecisionDefinition.evaluate(strategy, %{
-          "variables" => Cain.Variable.cast(body)
-        })
-        |> Endpoint.submit()
-        |> case do
+        request_body = %{"variables" => Cain.Variable.cast(body)}
+
+        case unquote(client).submit(DecisionDefinition.evaluate(strategy, request_body)) do
           {:ok, response} ->
-            {:ok, response |> Enum.map(&Cain.Variable.parse(&1))}
+            result = Enum.map(response, &Cain.Variable.parse(&1))
+            {:ok, result}
 
           error ->
             error

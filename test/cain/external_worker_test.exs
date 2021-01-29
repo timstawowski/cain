@@ -3,11 +3,16 @@ defmodule Cain.ExternalWorkerTest do
   import ExUnit.CaptureLog
 
   defmodule WorkerName do
-    use Cain.ExternalWorker
+    use Cain.ExternalWorker,
+      client: TestClientMock
 
     def register_topics do
       []
     end
+  end
+
+  setup do
+    {:ok, task_id: "A_EX_TASK_ID", state: struct!(Cain.ExternalWorker)}
   end
 
   describe "init/1" do
@@ -16,21 +21,43 @@ defmodule Cain.ExternalWorkerTest do
 
       assert String.contains?(init_state.worker_id, "WorkerName")
     end
+
+    test "TestClientMock is given" do
+      {:ok, init_state, _continue} =
+        Cain.ExternalWorker.init(module: WorkerName, client: TestClientMock)
+
+      assert init_state.client == TestClientMock
+    end
   end
 
   describe "handle_info/2" do
-    test "unknown 'task_id' in workload leads to ignoring function result and writing log message" do
+    test "unknown 'task_id' in workload leads to ignoring function result and writing log message",
+         context do
       task_operation_completed_successfully = {make_ref(), {:ok, nil}}
-      state = struct!(Cain.ExternalWorker)
 
       {:noreply, _state, {:continue, {task_id, _func_result}}} =
-        Cain.ExternalWorker.handle_info(task_operation_completed_successfully, state)
+        Cain.ExternalWorker.handle_info(task_operation_completed_successfully, context.state)
 
       assert task_id == nil
     end
   end
 
   describe "handle_continue/2" do
+    test "with retries updates retries at external task in workload", context do
+      workload = %{context.task_id => %Cain.ExternalWorker.ExternalTask{retries: 10}}
+      state = %{context.state | workload: workload}
+
+      retry_instructions = {:incident, "", "", 14, 1000}
+
+      {:noreply, updated_state, {:continue, {_task_id, request_body, _func}}} =
+        Cain.ExternalWorker.handle_continue({context.task_id, retry_instructions}, state)
+
+      updated_external_task = updated_state.workload[context.task_id]
+
+      assert request_body["retries"] == updated_external_task.retries
+      assert updated_external_task == %Cain.ExternalWorker.ExternalTask{retries: 9}
+    end
+
     test "unknown 'task_id' ignores function result and writes out log message with return type" do
       result =
         assert capture_log(fn ->
