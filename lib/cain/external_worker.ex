@@ -228,27 +228,40 @@ defmodule Cain.ExternalWorker do
   end
 
   @impl true
-  def handle_continue({task_id, {:incident, err_msg, err_details, retries, retry_timout}}, state) do
-    current_retries = calculate_retries(state.workload, task_id, retries)
+  def handle_continue(
+        {task_id, {:incident, err_msg, err_details, max_retries, retry_timout}},
+        state
+      ) do
+    external_task = state.workload[task_id]
+    ex_task_with_updated_retries = ExternalTask.update_retries(external_task, max_retries)
 
     request_body = %{
       "workerId" => state.worker_id,
       "errorMessage" => err_msg,
       "errorDetails" => err_details,
-      "retries" => current_retries,
+      "retries" => ex_task_with_updated_retries.retries,
       "retryTimeout" => retry_timout
     }
 
     Endpoint.ExternalTask.handle_failure(task_id, request_body)
     |> Endpoint.submit()
 
-    workload = mark_external_task_as_processed(task_id, state.workload)
-    {:noreply, %{state | workload: workload}}
+    workload_with_updated_external_task =
+      put_in(state.workload, [task_id], ex_task_with_updated_retries)
+
+    updated_workload =
+      mark_external_task_as_processed(task_id, workload_with_updated_external_task)
+
+    {:noreply, %{state | workload: updated_workload}}
   end
 
   @impl true
   def handle_continue({task_id, invalid_function_result}, state) do
-    Logger.error("Recieved invalid function result for external_task_id '#{task_id}', creating incident.")
+    invalid_func_error_log_msg =
+      "Recieved invalid function result for external_task_id '#{task_id}', creating incident."
+
+    Logger.error(invalid_func_error_log_msg)
+
     incident = {:incident, "Invalid function result", inspect(invalid_function_result), 0, 3000}
     {:noreply, state, {:continue, {task_id, incident}}}
   end
@@ -257,14 +270,6 @@ defmodule Cain.ExternalWorker do
     Enum.find_value(workload, fn {task_id, task_info} ->
       task_info.task.ref == reference && task_id
     end)
-  end
-
-  defp calculate_retries(workload, task_id, retries) do
-    external_task = workload[task_id]
-
-    external_task.retries
-    |> Kernel.||(retries + 1)
-    |> Kernel.-(1)
   end
 
   defp create_external_tasks(ex_tasks, state) do
