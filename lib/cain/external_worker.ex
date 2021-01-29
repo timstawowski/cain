@@ -175,7 +175,7 @@ defmodule Cain.ExternalWorker do
     external_task = state.workload[task_id]
 
     workload =
-      if external_task.status == :processed,
+      if external_task && external_task.status == :processed,
         do: Map.delete(state.workload, task_id),
         else: state.workload
 
@@ -274,8 +274,16 @@ defmodule Cain.ExternalWorker do
 
   defp create_external_tasks(ex_tasks, state) do
     Enum.reduce(ex_tasks, state, fn ex_task, %{workload: workload} = state ->
-      external_task = apply_external_task(state.topics, ex_task)
-      updated_workload = Map.put(workload, ex_task["id"], external_task)
+      ex_task_id = ex_task["id"]
+      is_ex_task_id_in_workload? = Map.keys(workload) |> Enum.member?(ex_task_id)
+
+      updated_workload =
+        if not is_ex_task_id_in_workload? do
+          external_task = apply_external_task(state.topics, ex_task)
+          Map.put(workload, ex_task_id, external_task)
+        else
+          workload
+        end
 
       %{state | workload: updated_workload}
     end)
