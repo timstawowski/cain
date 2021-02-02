@@ -21,6 +21,11 @@ defmodule MyWorker do
 end
 ```
 
+Currently only the build in Tesla client will be used for sending request and handling responses. To configure your endpoint just add following configurations in your config files.
+
+```elixir
+config :cain, Cain.Endpoint, url: "http://localhost:4004/engine-rest/"
+```
 
 Add `register_topics/1` and create a list of a tuple with the following elements:
 - Name of the topic that has been given in the BPMN-Process-Model
@@ -29,7 +34,7 @@ Add `register_topics/1` and create a list of a tuple with the following elements
 
 ```elixir
 def register_topics do
-  [{:my_topic, {MyTopicHandler, :handle_topic, [:my_arg], [lock_duration: 5000]}]
+  [{:my_topic, {MyTopicHandler, :handle_topic, [:my_arg]}, [lock_duration: 5000]}]
 end
 ```
 
