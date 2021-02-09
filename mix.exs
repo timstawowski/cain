@@ -4,7 +4,7 @@ defmodule Cain.MixProject do
   def project do
     [
       app: :cain,
-      version: "0.3.10",
+      version: "0.3.11",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
