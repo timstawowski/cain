@@ -1,9 +1,8 @@
 defmodule Cain.Endpoint do
-  @moduledoc """
-  Default endpoint definiton for using `Cain.ExternalWorker`.
-  """
+  @moduledoc false
+
   @type body :: map
-  
+
   @type request :: {:get | :put | :post | :delete, path :: String.t(), query :: map, body}
   @type response :: {:ok, body | binary} | {:error, Cain.Endpoint.Error.t()}
 

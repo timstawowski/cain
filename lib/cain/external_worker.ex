@@ -56,7 +56,7 @@ defmodule Cain.ExternalWorker do
     :worker_id,
     :module,
     :topics,
-    client: Cain.RestClient.Default,
+    client: Cain.Client.Default,
     max_tasks: 3,
     use_priority: false,
     polling_interval: 3000,

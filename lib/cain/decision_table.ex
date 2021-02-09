@@ -5,14 +5,12 @@ defmodule Cain.DecisionTable do
 
   defmacro __using__(opts) do
     key = Keyword.get(opts, :definition_key)
-    client = Keyword.get(opts, :client, Cain.RestClient.Default)
+    client = Keyword.get(opts, :client, Cain.Client.Default)
 
-    cond do
-      is_nil(key) ->
-        raise "definition_key must be provided!"
-
-      true ->
-        Module.put_attribute(__CALLER__.module, :key, key)
+    if is_nil(key) do
+      raise "definition_key must be provided!"
+    else
+      Module.put_attribute(__CALLER__.module, :key, key)
     end
 
     quote do

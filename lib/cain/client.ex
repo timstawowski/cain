@@ -1,17 +1,24 @@
-defmodule Cain.RestClient do
-  @moduledoc false
+defmodule Cain.Client do
+  @moduledoc """
+  Defines required api function for using `Cain.ExternalWorker` and `Cain.DecisionTable`.
+
+  If no client module is added when using `Cain.ExternalWorker` or `Cain.DecisionTable`,
+  `Cain.Client.Default` will be used.
+  """
 
   @callback submit(Cain.Endpoint.request()) :: Cain.Endpoint.response()
 end
 
-defmodule Cain.RestClient.Default do
-  @moduledoc false
+defmodule Cain.Client.Default do
+  @moduledoc """
+  Default REST-client implementation used by `Cain.ExternalWorker` if no other http client has been set.
+  """
 
   require Logger
 
   alias Cain.Endpoint.Error
 
-  @behaviour Cain.RestClient
+  @behaviour Cain.Client
 
   @success_codes [200, 204]
 

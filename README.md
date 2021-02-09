@@ -6,6 +6,18 @@ Camunda-REST-API-Interpreter to handle common Camunda specific workflow use case
 - Handle external tasks
 - Invoke DMN evaluations
 
+
+## HTTP-Client
+
+`Cain.ExternalWorker` and `Cain.DecisionTable` are using `Cain.Client.Default` for submitting HTTP requests on default.
+Therefore it's using the [Tesla](https://github.com/teamon/tesla) library. If you want to add you own HTTP-Client it has to implement the `Cain.Client` behaviour and also has to support handling of JSON data.
+
+Using `Cain.Client.Default` requires to add following configuration in your config.
+
+```elixir
+config :cain, Cain.Endpoint, url: "http://localhost:4004/engine-rest/"
+```
+
 ## External Task Client
 
 Use `Cain.ExternalWorker` for referencing your external task function implementation in your application.
@@ -13,18 +25,13 @@ Use `Cain.ExternalWorker` for referencing your external task function implementa
 ```elixir
 defmodule MyWorker do
   use Cain.ExternalWorker, [
+    client: My.HTTPClient   # default: Cain.Client.Default
     max_tasks: 5,           # default: 3
     use_priority: true,     # default: false
     polling_interval: 1000  # default: 3000
   ]
   
 end
-```
-
-Currently only the build in Tesla client will be used for sending request and handling responses. To configure your endpoint just add following configurations in your config files.
-
-```elixir
-config :cain, Cain.Endpoint, url: "http://localhost:4004/engine-rest/"
 ```
 
 Add `register_topics/1` and create a list of a tuple with the following elements:
@@ -70,7 +77,9 @@ Use `Cain.DecisionTable` and set the corresponding `definition_key` of the deplo
 
 ```elixir
 defmodule MyDecisionTable do
-  use Cain.DecisionTable, definition_key: "MY_TABLE"
+  use Cain.DecisionTable, 
+    client: My.HTTPClient   #default: Cain.Client.Default
+    definition_key: "MY_TABLE"
 end
 ```
 And evaluate.
@@ -80,7 +89,7 @@ MyDecisionTable.evaluate(%{first: 1, second: "Second"})
 # {:ok, [%{is_valid: true}]}
 ```
 
-The return value depends on the output definition of the table. 
+The return value depends on the output definition of the modeled DMN table. 
 
 ## Installation
 
