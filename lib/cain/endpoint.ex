@@ -1,10 +1,32 @@
 defmodule Cain.Endpoint do
-  @moduledoc false
+  @moduledoc """
+  Specification for Camunda-REST information.
 
-  @type body :: map
+  See: https://docs.camunda.org/manual/latest/reference/rest/ for further information.
+  """
 
-  @type request :: {:get | :put | :post | :delete, path :: String.t(), query :: map, body}
-  @type response :: {:ok, body | binary} | {:error, Cain.Endpoint.Error.t()}
+  defmodule Body do
+    @moduledoc """
+    Describe response or request body information.
+    """
+
+    @type t :: %{optional(String.t()) => variables()}
+
+    @type variables :: %{required(var_name()) => var_values()}
+
+    @type var_name :: String.t()
+    @type var_values ::
+            binary()
+            | atom()
+            | boolean()
+            | integer()
+            | float()
+            | map()
+            | list()
+  end
+
+  @type request :: {:get | :put | :post | :delete, path :: String.t(), query :: map, Body.t()}
+  @type response :: {:ok, Body.t() | binary} | {:error, Cain.Endpoint.Error.t()}
 
   @type strategy_id :: {:id, binary}
   @type strategy_key :: {:key, binary}
