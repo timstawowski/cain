@@ -22,6 +22,7 @@ defmodule Cain.BusinessProcess do
     end
 
     quote do
+      @deprecated "Will be removed in the upcoming version"
       def start_instance(
             business_key,
             params \\ %{},
@@ -47,6 +48,7 @@ defmodule Cain.BusinessProcess do
         |> Endpoint.submit()
       end
 
+      @deprecated "Will be removed in the upcoming version"
       def get_current_process_instance(super_process_instance_id) do
         ProcessInstance.get_list(%{
           "superProcessInstance" => super_process_instance_id
@@ -54,6 +56,7 @@ defmodule Cain.BusinessProcess do
         |> Endpoint.submit()
       end
 
+      @deprecated "Will be removed in the upcoming version"
       def get_process_instance_by_business_key(business_key) do
         ProcessInstance.get_list(%{
           "businessKey" => business_key,
@@ -62,12 +65,14 @@ defmodule Cain.BusinessProcess do
         |> Endpoint.submit()
       end
 
+      @deprecated "Will be removed in the upcoming version"
       def get_current_activity(process_instance_id) do
         process_instance_id
         |> ProcessInstance.get_activity_instance()
         |> Endpoint.submit()
       end
 
+      @deprecated "Will be removed in the upcoming version"
       def get_variable_by_name(process_instance_id, variable_name, opts \\ []) do
         deserializedValues? = Keyword.get(opts, :deserialized_values?, true)
 
@@ -81,6 +86,7 @@ defmodule Cain.BusinessProcess do
         |> Endpoint.submit()
       end
 
+      @deprecated "Will be removed in the upcoming version"
       def delete_process_instance(process_instance_id, opts \\ []) do
         active? = Keyword.get(opts, :active?, true)
         with_history? = Keyword.get(opts, :with_history?, true)
@@ -144,6 +150,7 @@ defmodule Cain.BusinessProcess do
       #   end
       # end
 
+      @deprecated "Will be removed in the upcoming version"
       def correlate_message(identifier, message, process_variables \\ %{}, opts \\ [])
 
       def correlate_message(
@@ -177,6 +184,7 @@ defmodule Cain.BusinessProcess do
         |> Endpoint.submit()
       end
 
+      @deprecated "Will be removed in the upcoming version"
       def trigger_user_task_bpmn_error(business_key, error_code, error_message, variables) do
         Task.get_list(%{
           "processInstanceBusinessKey" => business_key,
@@ -198,6 +206,7 @@ defmodule Cain.BusinessProcess do
         end
       end
 
+      @deprecated "Will be removed in the upcoming version"
       def complete_user_task(
             business_key,
             params \\ %{},
