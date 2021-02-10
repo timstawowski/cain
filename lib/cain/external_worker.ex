@@ -56,7 +56,7 @@ defmodule Cain.ExternalWorker do
     :worker_id,
     :module,
     :topics,
-    client: Cain.Client.Default,
+    :client,
     max_tasks: 3,
     use_priority: false,
     polling_interval: 3000,
@@ -65,13 +65,14 @@ defmodule Cain.ExternalWorker do
 
   defmacro __using__(opts) do
     init_args = Keyword.put_new(opts, :module, __CALLER__.module)
+    client = Keyword.get(opts, :client, Cain.Client.Default)
 
     Module.put_attribute(__CALLER__.module, :init_args, init_args)
 
     quote do
       @behaviour Cain.ExternalWorker
       def start_link do
-        GenServer.start_link(Cain.ExternalWorker, @init_args, name: __MODULE__)
+        GenServer.start_link(Cain.ExternalWorker, @init_args ++ [client: unquote(client)], name: __MODULE__)
       end
 
       @doc """
@@ -138,6 +139,7 @@ defmodule Cain.ExternalWorker do
     worker_id = worker_id(module)
     topics = apply(module, :register_topics, [])
     init_state = struct(__MODULE__, init_args ++ [worker_id: worker_id, topics: topics])
+    Process.flag(:trap_exit, true)
 
     {:ok, init_state, {:continue, :invoke_polling}}
   end
@@ -171,7 +173,7 @@ defmodule Cain.ExternalWorker do
   end
 
   @impl true
-  def handle_info({:DOWN, reference, :process, _pid, :normal}, state) do
+  def handle_info({:DOWN, reference, :process, _pid, _}, state) do
     task_id = fetch_task_id(reference, state.workload)
     external_task = state.workload[task_id]
 
@@ -181,6 +183,22 @@ defmodule Cain.ExternalWorker do
         else: state.workload
 
     {:noreply, %{state | workload: workload}}
+  end
+
+  @impl true
+  def handle_info({:EXIT, async_task_pid, error}, state) do
+    incident =
+      {:incident, "Task #{inspect(async_task_pid)} crashed", Exception.format_exit(error), 0,
+       3000}
+
+    ex_task_id =
+      Enum.find_value(state.workload, fn {ex_task_id, ex_task} ->
+        if async_task_pid == ex_task.task.pid do
+          ex_task_id
+        end
+      end)
+
+    {:noreply, state, {:continue, {ex_task_id, incident}}}
   end
 
   @impl true
