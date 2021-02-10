@@ -186,6 +186,11 @@ defmodule Cain.ExternalWorker do
   end
 
   @impl true
+  def handle_info({:EXIT, _async_task_pid, :normal}, state) do
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info({:EXIT, async_task_pid, error}, state) do
     incident =
       {:incident, "Task #{inspect(async_task_pid)} crashed", Exception.format_exit(error), 0,
