@@ -1,15 +1,27 @@
-defmodule Cain.ExternalWorkerTest do
-  use ExUnit.Case, async: true
-  import ExUnit.CaptureLog
+defmodule TestClientMock do
+  @behaviour Cain.Client
 
-  defmodule WorkerName do
-    use Cain.ExternalWorker,
-      client: TestClientMock
+  def submit(_), do: {:ok, [%{"topicName" => "raise", "retries" => nil, "variables" => %{}}]}
+end
 
-    def register_topics do
-      []
-    end
+defmodule WorkerName do
+  use Cain.ExternalWorker,
+    client: TestClientMock,
+    polling_interval: 700
+
+  def register_topics do
+    [{:raise, {Cain.ExternalWorkerTest, :raise_crash_work, []}, []}]
   end
+end
+
+defmodule Cain.ExternalWorkerTest do
+  @moduledoc false
+
+  use ExUnit.Case, async: true
+
+  require TestClientMock
+
+  import ExUnit.CaptureLog
 
   setup do
     {:ok, task_id: "A_EX_TASK_ID", state: struct!(Cain.ExternalWorker)}
@@ -78,5 +90,27 @@ defmodule Cain.ExternalWorkerTest do
 
       assert result =~ "Recieved invalid function result for external_task_id 'EXTERNAL_TASK_ID'"
     end
+  end
+
+  describe "traped Task.async/1 crash" do
+    test "invokes incident" do
+      worker_pid =
+        start_supervised!(%{
+          id: WorkerName,
+          start: {WorkerName, :start_link, []},
+          type: :worker
+        })
+
+      # wait for poll
+      Process.sleep(1000)
+
+      assert Process.alive?(worker_pid)
+
+      stop_supervised(WorkerName)
+    end
+  end
+
+  def raise_crash_work(_payload) do
+    raise "Error"
   end
 end

@@ -34,7 +34,6 @@ defmodule Cain.Variable do
   def cast(%{__struct__: _struct} = variables), do: cast(Map.from_struct(variables))
 
   def cast(variables) when is_map(variables) do
-    variables
     Enum.reduce(variables, %{}, fn {key, value}, acc ->
       name = Cain.Variable.Formatter.__name__(key)
       Map.put(acc, name, Cain.Variable.Formatter.__cast__(value))

@@ -20,7 +20,7 @@ defmodule Cain.Variable.Formatter do
 
   def __name__(term) when is_atom(term), do: Atom.to_string(term)
   def __name__(term) when is_binary(term), do: term
-  def __name__(_term), do: raise Cain.Variable.InvalidNameError
+  def __name__(_term), do: raise(Cain.Variable.InvalidNameError)
 
   def __cast__(nil), do: %{"type" => "Null", "value" => nil}
   def __cast__(term) when is_float(term), do: %{"type" => "Double", "value" => term}
@@ -32,7 +32,9 @@ defmodule Cain.Variable.Formatter do
     do: %{"type" => "Long", "value" => term}
 
   def __cast__(term) when is_boolean(term), do: %{"type" => "Boolean", "value" => term}
-  def __cast__(term) when is_atom(term), do: %{"type" => "String", "value" => Atom.to_string(term)}
+
+  def __cast__(term) when is_atom(term),
+    do: %{"type" => "String", "value" => Atom.to_string(term)}
 
   def __cast__(term) when is_binary(term) do
     if Regex.match?(@check_for_xml_content, term) do
@@ -48,7 +50,8 @@ defmodule Cain.Variable.Formatter do
     end
   end
 
-  def __cast__(%date_struct{} = date_format) when date_struct in [Date, DateTime, NaiveDateTime] do
+  def __cast__(%date_struct{} = date_format)
+      when date_struct in [Date, DateTime, NaiveDateTime] do
     if date_struct == NaiveDateTime and date_format.calendar != Calendar.ISO do
       raise Cain.Variable.InvalidDateFormatError
     else
