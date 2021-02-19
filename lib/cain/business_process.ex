@@ -1,7 +1,6 @@
 defmodule Cain.BusinessProcess do
   # alias Cain.ProcessInstance
   alias __MODULE__
-  alias Cain.Endpoint
 
   alias Cain.Endpoint.{
     ProcessDefinition,
@@ -10,8 +9,9 @@ defmodule Cain.BusinessProcess do
     Message
   }
 
-  defmacro __using__(params) do
-    key = Keyword.get(params, :definition_key)
+  defmacro __using__(opts) do
+    key = Keyword.get(opts, :definition_key)
+    client = Keyword.get(opts, :client, Cain.Client.Default)
 
     cond do
       is_nil(key) ->
@@ -45,7 +45,7 @@ defmodule Cain.BusinessProcess do
         }
 
         ProcessDefinition.start_instance(strategy, request)
-        |> Endpoint.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -53,7 +53,7 @@ defmodule Cain.BusinessProcess do
         ProcessInstance.get_list(%{
           "superProcessInstance" => super_process_instance_id
         })
-        |> Endpoint.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -62,14 +62,14 @@ defmodule Cain.BusinessProcess do
           "businessKey" => business_key,
           "processDefinitionKey" => @key
         })
-        |> Endpoint.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
       def get_current_activity(process_instance_id) do
         process_instance_id
         |> ProcessInstance.get_activity_instance()
-        |> Endpoint.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -83,7 +83,7 @@ defmodule Cain.BusinessProcess do
           },
           %{"deserializeValue" => deserializedValues?}
         )
-        |> Endpoint.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -93,14 +93,14 @@ defmodule Cain.BusinessProcess do
 
         process_instance_id
         |> ProcessInstance.delete()
-        |> Endpoint.submit()
+        |> unquote(client).submit()
         |> case do
           {:ok, _resposne} ->
             if with_history? do
               with {:ok, _resposne} <-
                      process_instance_id
                      |> ProcessInstance.delete()
-                     |> Endpoint.submit_history() do
+                     |> unquote(client).submit_history() do
                 :ok
               else
                 history_error ->
@@ -114,41 +114,6 @@ defmodule Cain.BusinessProcess do
             error
         end
       end
-
-      # def get_current_user_task(business_key, opts \\ [], forms_spec \\ unquote(forms_spec))
-
-      # def get_current_user_task(business_key, opts, forms_spec) do
-      #   with_form_data? = Keyword.get(opts, :with_form_data?, false)
-
-      #   {:ok, current_tasks} =
-      #     Task.get_list(%{
-      #       # "taskDefinitionKey" => task_definition_key,
-      #       "processInstanceBusinessKey" => business_key,
-      #       # "processDefinitionKey" => @key,
-      #       "active" => true
-      #     })
-      #     |> Endpoint.submit()
-
-      #   if with_form_data? do
-      #     task_definition_key =
-      #       List.first(current_tasks)
-      #       |> Map.get("taskDefinitionKey")
-      #       |> String.to_existing_atom()
-
-      #     Enum.map(current_tasks, fn %{"id" => task_id} = task ->
-      #       Task.get_task_form_variables(task_id, %{
-      #         "variableNames" =>
-      #           Keyword.get(forms_spec, task_definition_key)
-      #           |> Keyword.keys()
-      #           |> Enum.map(&Atom.to_string/1)
-      #           |> Enum.join(",")
-      #       })
-      #       |> Endpoint.submit()
-      #     end)
-      #   else
-      #     current_tasks
-      #   end
-      # end
 
       @deprecated "Will be removed in the upcoming version"
       def correlate_message(identifier, message, process_variables \\ %{}, opts \\ [])
@@ -181,7 +146,7 @@ defmodule Cain.BusinessProcess do
           "variablesInResultEnabled" => with_result_variables_in_return?
         })
         |> Message.correlate()
-        |> Endpoint.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -191,7 +156,7 @@ defmodule Cain.BusinessProcess do
           # "processDefinitionKey" => @key,
           "active" => true
         })
-        |> Endpoint.submit()
+        |> unquote(client).submit()
         |> case do
           {:ok, []} ->
             {:error, "No open tasks for claim: #{business_key}!"}
@@ -202,7 +167,7 @@ defmodule Cain.BusinessProcess do
               "errorMessage" => error_message,
               "variables" => variables
             })
-            |> Endpoint.submit()
+            |> unquote(client).submit()
         end
       end
 
@@ -222,7 +187,7 @@ defmodule Cain.BusinessProcess do
           # "processDefinitionKey" => @key,
           "active" => true
         })
-        |> Endpoint.submit()
+        |> unquote(client).submit()
         |> case do
           {:ok, []} ->
             {:error, "No open tasks for claim: #{business_key}!"}
@@ -233,7 +198,7 @@ defmodule Cain.BusinessProcess do
               "variables" => variables,
               "withVariablesInReturn" => with_variables_in_return?
             })
-            |> Endpoint.submit()
+            |> unquote(client).submit()
             |> case do
               {:ok, variables} ->
                 variables
