@@ -1,7 +1,6 @@
 defmodule Cain.BusinessProcess do
   # alias Cain.ProcessInstance
   alias __MODULE__
-  alias Cain.Endpoint
 
   alias Cain.Endpoint.{
     ProcessDefinition,
@@ -10,8 +9,8 @@ defmodule Cain.BusinessProcess do
     Message
   }
 
-  defmacro __using__(params) do
-    key = Keyword.get(params, :definition_key)
+  defmacro __using__(opts) do
+    key = Keyword.get(opts, :definition_key)
     client = Keyword.get(opts, :client, Cain.Client.Default)
 
     cond do
@@ -22,7 +21,7 @@ defmodule Cain.BusinessProcess do
         Module.put_attribute(__CALLER__.module, :key, key)
     end
 
-    quote bind_quoted: [client: rest_client] do
+    quote do
       @deprecated "Will be removed in the upcoming version"
       def start_instance(
             business_key,
@@ -46,7 +45,7 @@ defmodule Cain.BusinessProcess do
         }
 
         ProcessDefinition.start_instance(strategy, request)
-        |> rest_client.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -54,7 +53,7 @@ defmodule Cain.BusinessProcess do
         ProcessInstance.get_list(%{
           "superProcessInstance" => super_process_instance_id
         })
-        |> rest_client.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -63,14 +62,14 @@ defmodule Cain.BusinessProcess do
           "businessKey" => business_key,
           "processDefinitionKey" => @key
         })
-        |> rest_client.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
       def get_current_activity(process_instance_id) do
         process_instance_id
         |> ProcessInstance.get_activity_instance()
-        |> rest_client.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -84,7 +83,7 @@ defmodule Cain.BusinessProcess do
           },
           %{"deserializeValue" => deserializedValues?}
         )
-        |> rest_client.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -94,14 +93,14 @@ defmodule Cain.BusinessProcess do
 
         process_instance_id
         |> ProcessInstance.delete()
-        |> rest_client.submit()
+        |> unquote(client).submit()
         |> case do
           {:ok, _resposne} ->
             if with_history? do
               with {:ok, _resposne} <-
                      process_instance_id
                      |> ProcessInstance.delete()
-                     |> Endpoint.submit_history() do
+                     |> unquote(client).submit_history() do
                 :ok
               else
                 history_error ->
@@ -147,7 +146,7 @@ defmodule Cain.BusinessProcess do
           "variablesInResultEnabled" => with_result_variables_in_return?
         })
         |> Message.correlate()
-        |> Endpoint.submit()
+        |> unquote(client).submit()
       end
 
       @deprecated "Will be removed in the upcoming version"
@@ -157,7 +156,7 @@ defmodule Cain.BusinessProcess do
           # "processDefinitionKey" => @key,
           "active" => true
         })
-        |> Endpoint.submit()
+        |> unquote(client).submit()
         |> case do
           {:ok, []} ->
             {:error, "No open tasks for claim: #{business_key}!"}
@@ -168,7 +167,7 @@ defmodule Cain.BusinessProcess do
               "errorMessage" => error_message,
               "variables" => variables
             })
-            |> Endpoint.submit()
+            |> unquote(client).submit()
         end
       end
 
@@ -188,7 +187,7 @@ defmodule Cain.BusinessProcess do
           # "processDefinitionKey" => @key,
           "active" => true
         })
-        |> Endpoint.submit()
+        |> unquote(client).submit()
         |> case do
           {:ok, []} ->
             {:error, "No open tasks for claim: #{business_key}!"}
@@ -199,7 +198,7 @@ defmodule Cain.BusinessProcess do
               "variables" => variables,
               "withVariablesInReturn" => with_variables_in_return?
             })
-            |> Endpoint.submit()
+            |> unquote(client).submit()
             |> case do
               {:ok, variables} ->
                 variables
