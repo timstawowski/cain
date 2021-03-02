@@ -16,9 +16,3 @@ defmodule Cain.Endpoint.Error do
     }
   end
 end
-
-defimpl Inspect, for: Cain.Endpoint.Error do
-  def inspect(cain_error, _opts) do
-    "#Cain.Error<[" <> to_string(cain_error.http_status) <> "]::" <> cain_error.type <> ">"
-  end
-end
