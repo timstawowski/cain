@@ -4,7 +4,7 @@ defmodule Cain.MixProject do
   def project do
     [
       app: :cain,
-      version: "0.3.15",
+      version: "0.3.16",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -30,7 +30,7 @@ defmodule Cain.MixProject do
 
   defp deps do
     [
-      {:tesla, "~> 1.3.1"},
+      {:tesla, "~> 1.4.1"},
       {:jason, ">= 1.0.0"},
       {:beauty_exml, "~> 0.1.0"},
       {:ex_doc, "~> 0.14", only: :dev, runtime: false}
